@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,14 @@ export function CollectionMenu({
   onError: (message: string | null) => void;
 }) {
   const [isDeleting, startDeleting] = useTransition();
+  // When "Rename" is chosen, the menu button is replaced by the rename field.
+  // The menu must then not move focus back to its (removed) button, or the field loses focus.
+  const renameChosen = useRef(false);
+
+  function handleRename() {
+    renameChosen.current = true;
+    onRename();
+  }
 
   function handleDelete() {
     if (
@@ -54,8 +62,13 @@ export function CollectionMenu({
           <MoreHorizontal />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onRename}>
+      <DropdownMenuContent
+        align="end"
+        onCloseAutoFocus={(event) => {
+          if (renameChosen.current) event.preventDefault();
+        }}
+      >
+        <DropdownMenuItem onSelect={handleRename}>
           <Pencil />
           Rename
         </DropdownMenuItem>

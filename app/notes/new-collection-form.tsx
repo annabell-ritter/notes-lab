@@ -13,34 +13,17 @@ import {
 
 const initialState: CreateCollectionState = {};
 
-export function NewCollectionForm() {
-  const [isOpen, setIsOpen] = useState(false);
+// Mounted only while the form is open, so closing it clears the typed name and any error.
+function CollectionNameForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [state, formAction] = useActionState(
     async (prevState: CreateCollectionState, formData: FormData) => {
       const result = await createCollectionAction(prevState, formData);
-      if (!result.error) {
-        setName("");
-        setIsOpen(false);
-      }
+      if (!result.error) onClose();
       return result;
     },
     initialState,
   );
-
-  if (!isOpen) {
-    return (
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        onClick={() => setIsOpen(true)}
-      >
-        <FolderPlus />
-        New collection
-      </Button>
-    );
-  }
 
   return (
     <form action={formAction} className="flex flex-col gap-2">
@@ -51,7 +34,7 @@ export function NewCollectionForm() {
         value={name}
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Escape") setIsOpen(false);
+          if (event.key === "Escape") onClose();
         }}
         autoFocus
         required
@@ -64,15 +47,28 @@ export function NewCollectionForm() {
         <SubmitButton size="sm" pendingText="Adding…">
           Add
         </SubmitButton>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={() => setIsOpen(false)}
-        >
+        <Button type="button" size="sm" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
       </div>
     </form>
+  );
+}
+
+export function NewCollectionForm() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (isOpen) return <CollectionNameForm onClose={() => setIsOpen(false)} />;
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full"
+      onClick={() => setIsOpen(true)}
+    >
+      <FolderPlus />
+      New collection
+    </Button>
   );
 }

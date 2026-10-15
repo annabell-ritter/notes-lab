@@ -42,6 +42,28 @@ Nothing stopped you from creating two collections called "Work". The sidebar the
 - `createCollection` and `renameCollection` in `lib/db.ts` turn the database's duplicate error (code `23505`) into a clear message: "A collection with this name already exists." The message is shown in the "New collection" form or the rename field.
 - Renaming a collection to a different capitalisation of its own name (for example "work" → "Work") still works.
 
-**Left as they are (small):**
-- If creating a collection fails on the server, the error is still shown when the "New collection" form is opened again.
-- Whether the rename field gets focus after choosing "Rename" in the ⋯ menu still needs checking in the browser.
+**Left as they are (small):** the two remaining points from this review were confirmed by `/code-review` and fixed below (Findings 4 and 6).
+
+### `/code-review` on pull request #2
+
+**Command:** `/code-review` (Claude Code's built-in review), run on the branch `collections-interface` after opening pull request #2. It reported 10 findings. One was a false positive: it said the data module should be `lib/data/`, but `CLAUDE.md` names `lib/db.ts`. Three were fixed on the branch:
+
+**Finding 4: the rename field didn't get focus**
+
+Choosing "Rename" in a collection's ⋯ menu replaces the menu button with the rename field. When the menu closed, it moved focus back to its button, which no longer existed. Focus ended up nowhere: typing did nothing and Escape didn't cancel until you clicked into the field.
+
+**Fix:** the menu remembers that "Rename" was chosen and, in that case, doesn't move focus when it closes, so the field keeps its focus (`app/notes/collection-menu.tsx`). For "Delete" and for closing the menu without choosing anything, focus still goes back to the button as usual.
+
+**Finding 5: moving a note counted as editing it**
+
+The database trigger refreshed `updated_at` on every change to a note, including a change of `collection_id`. The sidebar sorts by `updated_at`, so moving an old note to another collection made it jump to the top as if it had just been edited. Deleting a collection did the same to all of its notes at once, because the database sets their `collection_id` to empty.
+
+**Fix:** a new migration (`20261015203251_only_refresh_updated_at_on_content_change.sql`) recreates the trigger so it only fires when the title or body actually changes (`before update of title, body … when (old.title is distinct from new.title or old.body is distinct from new.body)`). Moving a note or deleting its collection no longer changes the note's `updated_at` or its position in the list. As a side effect, clicking Save without changing anything doesn't count as an edit either.
+
+**Finding 6: an old error came back in the "New collection" form**
+
+Cancel and Escape only hid the form. The last error (for example "A collection with this name already exists.") and the typed name stayed in memory and showed again the next time the form was opened, before anything was submitted.
+
+**Fix:** the name field, its error and the form's state now live in a separate component that only exists while the form is open (`app/notes/new-collection-form.tsx`). Closing the form removes it, so it always opens empty and without an error.
+
+**Not fixed (small):** technical database errors can still reach the screen in rare cases, for example when moving a note to a collection that was deleted in another tab. There's also one shared error slot for all collections in the sidebar, collections are loaded twice on a note page, the "No notes yet" message appears twice when there are no notes, and the dropdown can show "No collection" during a race with a deletion. Notes are also filtered once per group, which only matters with many notes.
