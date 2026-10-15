@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/submit-button";
 import type { Note } from "@/lib/db";
 import {
   deleteNoteAction,
@@ -50,9 +51,9 @@ export function NoteEditor({ note }: { note: Note }) {
           }}
         >
           <input type="hidden" name="id" value={note.id} />
-          <Button type="submit" variant="outline">
+          <SubmitButton variant="outline" pendingText="Deleting…">
             Delete
-          </Button>
+          </SubmitButton>
         </form>
       </div>
 

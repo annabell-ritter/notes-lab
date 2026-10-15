@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { getNotes } from "@/lib/db";
 import { createNoteAction } from "./actions";
 import { NoteList } from "./note-list";
@@ -49,10 +49,10 @@ export default function NotesLayout({
       <div className="flex min-h-0 flex-1">
         <aside className="flex w-72 shrink-0 flex-col border-r">
           <form action={createNoteAction} className="border-b p-3">
-            <Button type="submit" className="w-full">
+            <SubmitButton className="w-full" pendingText="Creating…">
               <Plus />
               New note
-            </Button>
+            </SubmitButton>
           </form>
           <nav aria-label="Notes" className="flex-1 overflow-y-auto p-2">
             <Suspense
