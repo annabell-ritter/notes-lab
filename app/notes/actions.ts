@@ -2,11 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createNote, deleteNote, updateNote } from "@/lib/db";
+import {
+  assignNoteToCollection,
+  createCollection,
+  createNote,
+  deleteCollection,
+  deleteNote,
+  renameCollection,
+  updateNote,
+} from "@/lib/db";
 
 export type SaveNoteState = {
   error?: string;
   savedAt?: string;
+};
+
+export type CreateCollectionState = {
+  error?: string;
 };
 
 function readNoteId(formData: FormData): number {
@@ -45,4 +57,72 @@ export async function deleteNoteAction(formData: FormData) {
   await deleteNote(id);
   revalidatePath("/notes", "layout");
   redirect("/notes");
+}
+
+export async function createCollectionAction(
+  _prevState: CreateCollectionState,
+  formData: FormData,
+): Promise<CreateCollectionState> {
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "The name can't be empty." };
+
+  try {
+    await createCollection(name);
+    revalidatePath("/notes", "layout");
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not create collection." };
+  }
+}
+
+function isValidId(id: number) {
+  return Number.isInteger(id) && id > 0;
+}
+
+export async function renameCollectionAction(
+  collectionId: number,
+  name: string,
+): Promise<{ error?: string }> {
+  const trimmedName = name.trim();
+  if (!isValidId(collectionId)) return { error: "Invalid collection." };
+  if (!trimmedName) return { error: "The name can't be empty." };
+
+  try {
+    await renameCollection(collectionId, trimmedName);
+    revalidatePath("/notes", "layout");
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not rename collection." };
+  }
+}
+
+export async function deleteCollectionAction(
+  collectionId: number,
+): Promise<{ error?: string }> {
+  if (!isValidId(collectionId)) return { error: "Invalid collection." };
+
+  try {
+    await deleteCollection(collectionId);
+    revalidatePath("/notes", "layout");
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not delete collection." };
+  }
+}
+
+export async function assignNoteToCollectionAction(
+  noteId: number,
+  collectionId: number | null,
+): Promise<{ error?: string }> {
+  if (!isValidId(noteId) || (collectionId !== null && !isValidId(collectionId))) {
+    return { error: "Invalid note or collection." };
+  }
+
+  try {
+    await assignNoteToCollection(noteId, collectionId);
+    revalidatePath("/notes", "layout");
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not move note." };
+  }
 }
