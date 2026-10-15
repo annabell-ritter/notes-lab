@@ -17,7 +17,18 @@ export type NoteInput = {
   body: string | null;
 };
 
+export type Collection = {
+  id: number;
+  name: string;
+  created_at: string;
+};
+
 const NOTE_COLUMNS = "id, title, body, created_at, updated_at, collection_id";
+const COLLECTION_COLUMNS = "id, name, created_at";
+
+// Postgres error code for a unique constraint violation.
+const UNIQUE_VIOLATION = "23505";
+const DUPLICATE_COLLECTION_MESSAGE = "A collection with this name already exists.";
 
 export async function getNotes(): Promise<Note[]> {
   const supabase = await createClient();
@@ -73,4 +84,70 @@ export async function deleteNote(id: number): Promise<void> {
   const { error } = await supabase.from("notes").delete().eq("id", id);
 
   if (error) throw new Error(`Could not delete note: ${error.message}`);
+}
+
+export async function assignNoteToCollection(
+  noteId: number,
+  collectionId: number | null,
+): Promise<Note> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("notes")
+    .update({ collection_id: collectionId })
+    .eq("id", noteId)
+    .select(NOTE_COLUMNS)
+    .single();
+
+  if (error) throw new Error(`Could not move note: ${error.message}`);
+  return data;
+}
+
+export async function getCollections(): Promise<Collection[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("collections")
+    .select(COLLECTION_COLUMNS)
+    .order("name", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) throw new Error(`Could not load collections: ${error.message}`);
+  return data;
+}
+
+export async function createCollection(name: string): Promise<Collection> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("collections")
+    .insert({ name })
+    .select(COLLECTION_COLUMNS)
+    .single();
+
+  if (error?.code === UNIQUE_VIOLATION) throw new Error(DUPLICATE_COLLECTION_MESSAGE);
+  if (error) throw new Error(`Could not create collection: ${error.message}`);
+  return data;
+}
+
+export async function renameCollection(
+  id: number,
+  name: string,
+): Promise<Collection> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("collections")
+    .update({ name })
+    .eq("id", id)
+    .select(COLLECTION_COLUMNS)
+    .single();
+
+  if (error?.code === UNIQUE_VIOLATION) throw new Error(DUPLICATE_COLLECTION_MESSAGE);
+  if (error) throw new Error(`Could not rename collection: ${error.message}`);
+  return data;
+}
+
+// The collection's notes are kept and become uncollected (on delete set null).
+export async function deleteCollection(id: number): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("collections").delete().eq("id", id);
+
+  if (error) throw new Error(`Could not delete collection: ${error.message}`);
 }
