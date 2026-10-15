@@ -37,6 +37,6 @@ A notes app with collections, tags and search, backed by Supabase. The full requ
 ## Workflow
 
 - The database structure is set up directly on `main` before any feature work. After that, build one feature per branch with one pull request per branch, in the order given in `PROJECT_BRIEF.md`. Don't commit features to `main` directly.
-- Each pull request is reviewed before merging.
+- Each pull request is reviewed before merging. Running `/comprehensive-review:full-review` or `/code-review` on the branch is optional: mention them as an option before merging, but don't run them or treat them as required unless asked.
 - Commit messages describe the change in plain words, such as "Add collections table and link notes to it". Never use "updates", "stuff" or similar.
 - Never commit `.env.local` or secrets.
