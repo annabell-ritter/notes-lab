@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { getCollections, getNote } from "@/lib/db";
+import { getCollections, getNote, getTags } from "@/lib/db";
 import { NoteEditor } from "./note-editor";
 
 async function NoteLoader({ params }: { params: Promise<{ id: string }> }) {
@@ -8,13 +8,21 @@ async function NoteLoader({ params }: { params: Promise<{ id: string }> }) {
   const noteId = Number(id);
   if (!Number.isInteger(noteId) || noteId <= 0) notFound();
 
-  const [note, collections] = await Promise.all([
+  const [note, collections, allTags] = await Promise.all([
     getNote(noteId),
     getCollections(),
+    getTags(),
   ]);
   if (!note) notFound();
 
-  return <NoteEditor key={note.id} note={note} collections={collections} />;
+  return (
+    <NoteEditor
+      key={note.id}
+      note={note}
+      collections={collections}
+      allTags={allTags}
+    />
+  );
 }
 
 export default function NotePage({

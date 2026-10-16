@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  addTagToNote,
   assignNoteToCollection,
   createCollection,
   createNote,
   deleteCollection,
   deleteNote,
+  removeTagFromNote,
   renameCollection,
   updateNote,
 } from "@/lib/db";
@@ -124,5 +126,37 @@ export async function assignNoteToCollectionAction(
     return {};
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not move note." };
+  }
+}
+
+export async function addTagToNoteAction(
+  noteId: number,
+  name: string,
+): Promise<{ error?: string }> {
+  const tagName = name.trim();
+  if (!isValidId(noteId)) return { error: "Invalid note." };
+  if (!tagName) return { error: "The tag can't be empty." };
+
+  try {
+    await addTagToNote(noteId, tagName);
+    revalidatePath("/notes", "layout");
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not add tag." };
+  }
+}
+
+export async function removeTagFromNoteAction(
+  noteId: number,
+  tagId: number,
+): Promise<{ error?: string }> {
+  if (!isValidId(noteId) || !isValidId(tagId)) return { error: "Invalid note or tag." };
+
+  try {
+    await removeTagFromNote(noteId, tagId);
+    revalidatePath("/notes", "layout");
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not remove tag." };
   }
 }

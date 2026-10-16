@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
-import type { Collection, Note } from "@/lib/db";
+import type { Collection, Note, Tag } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { CollectionMenu, RenameCollectionForm } from "./collection-menu";
 import { NoteList } from "./note-list";
+import { filterNotesByTags, TagFilter } from "./tag-filter";
 
 const UNCOLLECTED = "uncollected";
 
@@ -53,6 +54,40 @@ export function CollectionGroups({
     setExpanded(next);
   }
 
+  // The filter offers the tags that are on at least one note, sorted by name.
+  const tagsById = new Map<number, Tag>();
+  for (const note of notes) {
+    for (const tag of note.tags) tagsById.set(tag.id, tag);
+  }
+  const filterTags = [...tagsById.values()].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  // Ignore a selected tag once it's on no note any more, so it can't hide every note invisibly.
+  const activeTagIds = new Set(
+    [...selectedTagIds].filter((id) => tagsById.has(id)),
+  );
+  const isFiltering = activeTagIds.size > 0;
+  const visibleNotes = filterNotesByTags(notes, activeTagIds);
+
+  function toggleTag(tagId: number) {
+    const next = new Set(activeTagIds);
+    if (next.has(tagId)) next.delete(tagId);
+    else next.add(tagId);
+    setSelectedTagIds(next);
+
+    // Open every group that contains a matching note, so the results are visible straight away.
+    if (next.size) {
+      const matchingGroups = filterNotesByTags(notes, next).map((note) =>
+        groupKey(note.collection_id),
+      );
+      setExpanded(new Set([...expanded, ...matchingGroups]));
+    }
+  }
+
   const groups = [
     ...collections.map((collection) => ({
       key: groupKey(collection.id),
@@ -77,10 +112,25 @@ export function CollectionGroups({
           No notes yet. Create your first one with &ldquo;New note&rdquo;.
         </p>
       )}
+      {notes.length > 0 && (
+        <TagFilter
+          tags={filterTags}
+          selected={activeTagIds}
+          onToggle={toggleTag}
+          onClear={() => setSelectedTagIds(new Set())}
+        />
+      )}
+      {isFiltering && !visibleNotes.length && (
+        <p className="p-2 text-sm text-muted-foreground">
+          No notes have all the selected tags.
+        </p>
+      )}
       {groups.map((group) => {
-        const groupNotes = notes.filter(
+        const groupNotes = visibleNotes.filter(
           (note) => groupKey(note.collection_id) === group.key,
         );
+        // While filtering, hide groups without a matching note.
+        if (isFiltering && !groupNotes.length) return null;
         const isOpen = expanded.has(group.key);
 
         return (

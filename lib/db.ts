@@ -3,6 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 // All database reads and writes go through this module.
 // Pages, components and Server Actions call these functions and never use the Supabase client directly.
 
+export type Tag = {
+  id: number;
+  name: string;
+};
+
 export type Note = {
   id: number;
   title: string;
@@ -10,6 +15,7 @@ export type Note = {
   created_at: string;
   updated_at: string;
   collection_id: number | null;
+  tags: Tag[];
 };
 
 export type NoteInput = {
@@ -23,8 +29,11 @@ export type Collection = {
   created_at: string;
 };
 
-const NOTE_COLUMNS = "id, title, body, created_at, updated_at, collection_id";
+// tags(...) follows the note_tags links, so each note comes with its tags.
+const NOTE_COLUMNS =
+  "id, title, body, created_at, updated_at, collection_id, tags(id, name)";
 const COLLECTION_COLUMNS = "id, name, created_at";
+const TAG_COLUMNS = "id, name";
 
 // Postgres error code for a unique constraint violation.
 const UNIQUE_VIOLATION = "23505";
@@ -36,7 +45,8 @@ export async function getNotes(): Promise<Note[]> {
     .from("notes")
     .select(NOTE_COLUMNS)
     .order("updated_at", { ascending: false })
-    .order("id", { ascending: false });
+    .order("id", { ascending: false })
+    .order("name", { referencedTable: "tags" });
 
   if (error) throw new Error(`Could not load notes: ${error.message}`);
   return data;
@@ -48,6 +58,7 @@ export async function getNote(id: number): Promise<Note | null> {
     .from("notes")
     .select(NOTE_COLUMNS)
     .eq("id", id)
+    .order("name", { referencedTable: "tags" })
     .maybeSingle();
 
   if (error) throw new Error(`Could not load note: ${error.message}`);
@@ -150,4 +161,58 @@ export async function deleteCollection(id: number): Promise<void> {
   const { error } = await supabase.from("collections").delete().eq("id", id);
 
   if (error) throw new Error(`Could not delete collection: ${error.message}`);
+}
+
+export async function getTags(): Promise<Tag[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tags")
+    .select(TAG_COLUMNS)
+    .order("name", { ascending: true });
+
+  if (error) throw new Error(`Could not load tags: ${error.message}`);
+  return data;
+}
+
+// Reuses the tag if one with this name exists (ignoring case and spaces at either end), otherwise creates it.
+// Adding a tag the note already has does nothing.
+export async function addTagToNote(noteId: number, name: string): Promise<void> {
+  const supabase = await createClient();
+  const tagName = name.trim();
+  const sameName = (tag: Tag) =>
+    tag.name.trim().toLowerCase() === tagName.toLowerCase();
+
+  let tag = (await getTags()).find(sameName);
+  if (!tag) {
+    const { data, error } = await supabase
+      .from("tags")
+      .insert({ name: tagName })
+      .select(TAG_COLUMNS)
+      .single();
+
+    // Someone else created the same tag in the meantime: use theirs.
+    if (error?.code === UNIQUE_VIOLATION) tag = (await getTags()).find(sameName);
+    else if (error) throw new Error(`Could not create tag: ${error.message}`);
+    else tag = data;
+  }
+  if (!tag) throw new Error("Could not create tag.");
+
+  const { error } = await supabase
+    .from("note_tags")
+    .insert({ note_id: noteId, tag_id: tag.id });
+
+  if (error && error.code !== UNIQUE_VIOLATION) {
+    throw new Error(`Could not add tag: ${error.message}`);
+  }
+}
+
+export async function removeTagFromNote(noteId: number, tagId: number): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("note_tags")
+    .delete()
+    .eq("note_id", noteId)
+    .eq("tag_id", tagId);
+
+  if (error) throw new Error(`Could not remove tag: ${error.message}`);
 }

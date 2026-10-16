@@ -30,6 +30,18 @@ export function NoteList({ notes }: { notes: Note[] }) {
               <span className="block truncate text-xs text-muted-foreground">
                 {note.body || "No content"}
               </span>
+              {note.tags.length > 0 && (
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {note.tags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="rounded bg-secondary px-1.5 py-0.5 text-[11px] leading-none text-secondary-foreground"
+                    >
+                      {tag.name}
+                    </span>
+                  ))}
+                </span>
+              )}
             </Link>
           </li>
         );
