@@ -7,6 +7,8 @@ import { getCollections, getNotes } from "@/lib/db";
 import { createNoteAction } from "./actions";
 import { CollectionGroups } from "./collection-groups";
 import { NewCollectionForm } from "./new-collection-form";
+import { NotesFilterProvider } from "./notes-filter-context";
+import { SearchInput } from "./search-input";
 
 export const metadata: Metadata = {
   title: "Notes Lab",
@@ -39,31 +41,38 @@ export default function NotesLayout({
           Notes Lab
         </Link>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-72 shrink-0 flex-col border-r">
-          <div className="flex flex-col gap-2 border-b p-3">
-            <form action={createNoteAction}>
-              <SubmitButton className="w-full" pendingText="Creating…">
-                <Plus />
-                New note
-              </SubmitButton>
-            </form>
-            <NewCollectionForm />
-          </div>
-          <nav aria-label="Notes" className="flex-1 overflow-y-auto p-2">
-            <Suspense
-              fallback={
-                <p className="p-2 text-sm text-muted-foreground">
-                  Loading notes…
-                </p>
-              }
-            >
-              <NotesSidebar />
-            </Suspense>
-          </nav>
-        </aside>
-        <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
-      </div>
+      <NotesFilterProvider>
+        <div className="flex min-h-0 flex-1">
+          <aside className="flex w-72 shrink-0 flex-col border-r">
+            <div className="flex flex-col gap-2 border-b p-3">
+              <form action={createNoteAction}>
+                <SubmitButton className="w-full" pendingText="Creating…">
+                  <Plus />
+                  New note
+                </SubmitButton>
+              </form>
+              <NewCollectionForm />
+            </div>
+            <nav aria-label="Notes" className="flex-1 overflow-y-auto p-2">
+              <Suspense
+                fallback={
+                  <p className="p-2 text-sm text-muted-foreground">
+                    Loading notes…
+                  </p>
+                }
+              >
+                <NotesSidebar />
+              </Suspense>
+            </nav>
+          </aside>
+          <main className="flex min-w-0 flex-1 flex-col">
+            <div className="shrink-0 border-b p-3">
+              <SearchInput />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          </main>
+        </div>
+      </NotesFilterProvider>
     </div>
   );
 }

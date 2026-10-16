@@ -216,3 +216,34 @@ export async function removeTagFromNote(noteId: number, tagId: number): Promise<
 
   if (error) throw new Error(`Could not remove tag: ${error.message}`);
 }
+
+// Turns what the user typed into a prefix query: "team meetin" becomes "team:* & meetin:*".
+// Every word must match, and the last one can still be unfinished. Only letters and digits are kept,
+// so characters with a special meaning in a search query (& | ! : ( )) can't cause errors.
+function toPrefixQuery(text: string): string {
+  const words = text.match(/[\p{L}\p{N}]+/gu) ?? [];
+  return words.map((word) => `${word}:*`).join(" & ");
+}
+
+// Search and tag filter in one query: returns the ids of notes whose title or body matches `text`
+// and that have every tag in `tagIds` (AND logic).
+// Each selected tag gets its own inner join on note_tags (t0, t1, …). One join row only holds one tag,
+// so a single join can't check "has tag A and tag B"; separate joins can.
+export async function searchNoteIds(text: string, tagIds: number[]): Promise<number[]> {
+  const query = toPrefixQuery(text);
+  if (!query) return [];
+
+  const supabase = await createClient();
+  const tagJoins = tagIds.map((_, i) => `t${i}:note_tags!inner(tag_id)`);
+  let request = supabase
+    .from("notes")
+    .select(["id", ...tagJoins].join(", "))
+    .textSearch("search_vector", query, { config: "english" });
+  tagIds.forEach((tagId, i) => {
+    request = request.eq(`t${i}.tag_id`, tagId);
+  });
+
+  const { data, error } = await request;
+  if (error) throw new Error(`Could not search notes: ${error.message}`);
+  return (data as unknown as { id: number }[]).map((note) => note.id);
+}

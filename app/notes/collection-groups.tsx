@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import type { Collection, Note, Tag } from "@/lib/db";
 import { cn } from "@/lib/utils";
+import { searchNotesAction } from "./actions";
 import { CollectionMenu, RenameCollectionForm } from "./collection-menu";
 import { NoteList } from "./note-list";
+import { useNotesFilter } from "./notes-filter-context";
 import { filterNotesByTags, TagFilter } from "./tag-filter";
 
 const UNCOLLECTED = "uncollected";
@@ -63,15 +65,57 @@ export function CollectionGroups({
     a.name.localeCompare(b.name),
   );
 
-  const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(
-    () => new Set(),
-  );
+  const { searchText, selectedTagIds, setSelectedTagIds } = useNotesFilter();
   // Ignore a selected tag once it's on no note any more, so it can't hide every note invisibly.
   const activeTagIds = new Set(
     [...selectedTagIds].filter((id) => tagsById.has(id)),
   );
   const isFiltering = activeTagIds.size > 0;
-  const visibleNotes = filterNotesByTags(notes, activeTagIds);
+  const isSearching = searchText !== "";
+
+  // While searching, the database applies the search and the selected tags together (searchNoteIds).
+  // It runs again when either changes, and when the notes change, for example after an edit.
+  const tagKey = [...activeTagIds].sort((a, b) => a - b).join(",");
+  const searchKey = `${tagKey}|${searchText}`;
+  const [searchResult, setSearchResult] = useState<{
+    key: string;
+    noteIds: Set<number>;
+    error?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!searchText) return;
+    const tagIds = tagKey ? tagKey.split(",").map(Number) : [];
+    // Ignore the answer if the search changed while it was on its way.
+    let isLatest = true;
+
+    searchNotesAction(searchText, tagIds).then((result) => {
+      if (!isLatest) return;
+      const noteIds = new Set(result.noteIds ?? []);
+      setSearchResult({ key: `${tagKey}|${searchText}`, noteIds, error: result.error });
+
+      // Open every group that contains a result, so the results are visible straight away.
+      const groupsWithResults = notes
+        .filter((note) => noteIds.has(note.id))
+        .map((note) => groupKey(note.collection_id));
+      setExpanded((current) => new Set([...current, ...groupsWithResults]));
+    });
+
+    return () => {
+      isLatest = false;
+    };
+  }, [searchText, tagKey, notes]);
+
+  // While a new search runs, the previous results stay visible instead of an empty list.
+  const isSearchPending = isSearching && searchResult?.key !== searchKey;
+  const searchError = isSearching && !isSearchPending ? searchResult?.error : undefined;
+
+  let visibleNotes = filterNotesByTags(notes, activeTagIds);
+  if (isSearching) {
+    visibleNotes = searchResult
+      ? visibleNotes.filter((note) => searchResult.noteIds.has(note.id))
+      : [];
+  }
 
   function toggleTag(tagId: number) {
     const next = new Set(activeTagIds);
@@ -86,6 +130,20 @@ export function CollectionGroups({
       );
       setExpanded(new Set([...expanded, ...matchingGroups]));
     }
+  }
+
+  // The message above the groups when nothing (or nothing yet) can be shown.
+  let listMessage: React.ReactNode = null;
+  if (searchError) {
+    listMessage = <span className="text-destructive">{searchError}</span>;
+  } else if (!visibleNotes.length && isSearchPending) {
+    listMessage = "Searching…";
+  } else if (!visibleNotes.length && isSearching) {
+    listMessage = isFiltering
+      ? `No notes match “${searchText}” and have all the selected tags.`
+      : `No notes match “${searchText}”.`;
+  } else if (!visibleNotes.length && isFiltering) {
+    listMessage = "No notes have all the selected tags.";
   }
 
   const groups = [
@@ -120,17 +178,17 @@ export function CollectionGroups({
           onClear={() => setSelectedTagIds(new Set())}
         />
       )}
-      {isFiltering && !visibleNotes.length && (
-        <p className="p-2 text-sm text-muted-foreground">
-          No notes have all the selected tags.
+      {notes.length > 0 && (
+        <p aria-live="polite" className="px-2 text-sm text-muted-foreground empty:hidden">
+          {listMessage}
         </p>
       )}
       {groups.map((group) => {
         const groupNotes = visibleNotes.filter(
           (note) => groupKey(note.collection_id) === group.key,
         );
-        // While filtering, hide groups without a matching note.
-        if (isFiltering && !groupNotes.length) return null;
+        // While filtering or searching, hide groups without a matching note.
+        if ((isFiltering || isSearching) && !groupNotes.length) return null;
         const isOpen = expanded.has(group.key);
 
         return (
