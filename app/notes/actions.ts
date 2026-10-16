@@ -11,6 +11,7 @@ import {
   deleteNote,
   removeTagFromNote,
   renameCollection,
+  searchNoteIds,
   updateNote,
 } from "@/lib/db";
 
@@ -158,5 +159,18 @@ export async function removeTagFromNoteAction(
     return {};
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not remove tag." };
+  }
+}
+
+export async function searchNotesAction(
+  text: string,
+  tagIds: number[],
+): Promise<{ noteIds?: number[]; error?: string }> {
+  if (!tagIds.every(isValidId)) return { error: "Invalid tag." };
+
+  try {
+    return { noteIds: await searchNoteIds(text, tagIds) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not search notes." };
   }
 }
