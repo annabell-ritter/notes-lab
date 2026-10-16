@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/submit-button";
 import type { Collection, Note, Tag } from "@/lib/db";
+import { cn } from "@/lib/utils";
+import { tagColor } from "../tag-colors";
 import {
   addTagToNoteAction,
   assignNoteToCollectionAction,
@@ -115,14 +117,20 @@ function TagEditor({ note, allTags }: { note: Note; allTags: Tag[] }) {
           <ul className="flex flex-wrap gap-1">
             {note.tags.map((tag) => (
               <li key={tag.id}>
-                <Badge variant="secondary" className="gap-1 pr-1 font-normal">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "gap-1 border-transparent pr-1 font-normal",
+                    tagColor(tag.id).pill,
+                  )}
+                >
                   {tag.name}
                   <button
                     type="button"
                     onClick={() => handleRemove(tag)}
                     disabled={isSaving}
                     aria-label={`Remove tag ${tag.name}`}
-                    className="rounded-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                    className="rounded-sm opacity-60 hover:opacity-100 disabled:opacity-30"
                   >
                     <X className="size-3" />
                   </button>

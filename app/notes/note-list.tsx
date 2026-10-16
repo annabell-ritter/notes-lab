@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Note } from "@/lib/db";
 import { cn } from "@/lib/utils";
+import { tagColor } from "./tag-colors";
 
 export function NoteList({ notes }: { notes: Note[] }) {
   const pathname = usePathname();
@@ -35,7 +36,10 @@ export function NoteList({ notes }: { notes: Note[] }) {
                   {note.tags.map((tag) => (
                     <span
                       key={tag.id}
-                      className="rounded bg-secondary px-1.5 py-0.5 text-[11px] leading-none text-secondary-foreground"
+                      className={cn(
+                        "rounded px-1.5 py-0.5 text-[11px] leading-none",
+                        tagColor(tag.id).pill,
+                      )}
                     >
                       {tag.name}
                     </span>
