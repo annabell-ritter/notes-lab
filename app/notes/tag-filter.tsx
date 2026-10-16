@@ -2,6 +2,7 @@
 
 import type { Note, Tag } from "@/lib/db";
 import { cn } from "@/lib/utils";
+import { tagColor } from "./tag-colors";
 
 // AND logic: a note is kept only if it has every selected tag. No selected tags keeps every note.
 export function filterNotesByTags(notes: Note[], tagIds: Set<number>): Note[] {
@@ -43,6 +44,7 @@ export function TagFilter({
         <div className="flex flex-wrap gap-1">
           {tags.map((tag) => {
             const isSelected = selected.has(tag.id);
+            const color = tagColor(tag.id);
             return (
               <button
                 key={tag.id}
@@ -50,12 +52,16 @@ export function TagFilter({
                 onClick={() => onToggle(tag.id)}
                 aria-pressed={isSelected}
                 className={cn(
-                  "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                  "flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs transition-colors",
                   isSelected
-                    ? "border-primary bg-primary text-primary-foreground"
+                    ? cn(color.pill, color.border, "font-medium")
                     : "hover:bg-accent",
                 )}
               >
+                <span
+                  aria-hidden
+                  className={cn("size-2 shrink-0 rounded-full", color.dot)}
+                />
                 {tag.name}
               </button>
             );

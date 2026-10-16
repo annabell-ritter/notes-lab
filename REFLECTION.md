@@ -159,3 +159,29 @@ Full text search matches whole words by default. I compared three options on the
   - The search runs again when the notes change, so a note edited so it no longer matches drops out.
 - **Sidebar:** while searching, the results are split into the collection groups. Groups without results are hidden, and groups with results open automatically.
 - **Messages:** "Searching…" until the first results arrive, `No notes match "x".`, or `No notes match "x" and have all the selected tags.` when tags are selected.
+
+## Tag colours (optional task)
+
+### Approach
+
+**The requirement:** every tag gets a colour from a small palette. The colour shows on the note cards and in the filter panel.
+
+**What I chose: the colour comes from the tag's id**
+- `app/notes/tag-colors.ts` holds a palette of 8 colours: blue, emerald, amber, violet, rose, cyan, orange and lime. Each colour has:
+  - a dot colour
+  - a pill colour, with a darker background and lighter text in dark mode
+  - a border colour
+- `tagColor(tag.id)` picks the colour with `id % 8`.
+- The class names are written out in full (`bg-rose-100`, not built from pieces), so Tailwind finds them and generates the CSS. The file sits in `app/notes/`, because Tailwind only scans `app/` and `components/`, not `lib/`.
+
+**Where the colours show:**
+- **Note cards (sidebar):** each tag is a coloured pill instead of the grey one.
+- **Filter panel:** each tag chip has a coloured dot in front of its name. A selected chip fills with the tag's pill colour and gets a border in that colour, instead of the black "primary" style.
+- **Note view:** the tag badges use the same pill colours, so a tag looks the same everywhere.
+
+**Why this approach:**
+- **No database change:** no migration, and nothing to fill in for existing tags.
+- **Stable:** a tag always has the same colour on every card, in the filter and in the note view, and new tags take the next colour in turn.
+- **Simple:** one small function used in three places.
+
+**Trade-off:** you can't choose a tag's colour, and with more than 8 tags colours repeat. If choosing colours becomes a requirement, the next step is a `color` column on `tags` (limited to the palette names with a check constraint) and a colour picker in the note view.
