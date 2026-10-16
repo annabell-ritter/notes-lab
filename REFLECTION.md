@@ -67,3 +67,45 @@ Cancel and Escape only hid the form. The last error (for example "A collection w
 **Fix:** the name field, its error and the form's state now live in a separate component that only exists while the form is open (`app/notes/new-collection-form.tsx`). Closing the form removes it, so it always opens empty and without an error.
 
 **Not fixed (small):** technical database errors can still reach the screen in rare cases, for example when moving a note to a collection that was deleted in another tab. There's also one shared error slot for all collections in the sidebar, collections are loaded twice on a note page, the "No notes yet" message appears twice when there are no notes, and the dropdown can show "No collection" during a race with a deletion. Notes are also filtered once per group, which only matters with many notes.
+
+## Tag system
+
+### Approach for the tag filter ("all selected tags")
+
+**The requirement:** when one or more tags are selected, the sidebar shows only the notes that have **all** of them (AND logic). Selecting no tags shows every note. The filter has to work together with the collection groups.
+
+**Why the obvious Supabase filters don't work:**
+- Tags aren't a column on `notes`. They live in the `note_tags` join table, one row per note and tag, so `.contains()` on a column isn't an option.
+- `.in("note_tags.tag_id", [...])` keeps a note if it has *any* of the selected tags (OR logic), not all of them.
+- The `!inner` join from the Supabase docs (`note_tags!inner(tag_id)` with `.eq("note_tags.tag_id", id)`) works for one tag. Adding a second `.eq()` on the same joined table doesn't mean "has both". Both conditions are checked against the same `note_tags` row, and one row only holds one tag, so nothing matches.
+
+**What I chose: filter in the app, on notes that are already loaded**
+- `getNotes()` in `lib/db.ts` already loads every note with its tags (`tags(id, name)`, which Supabase follows through `note_tags`), because the sidebar shows the tags on each note card anyway.
+- `filterNotesByTags(notes, tagIds)` in `app/notes/tag-filter.tsx` keeps a note only if **every** selected tag id is among the note's tag ids (`[...tagIds].every(...)`). With no tags selected, it returns all notes.
+- `CollectionGroups` (`app/notes/collection-groups.tsx`) runs the filter first and then splits the result into the collection groups as before. While a filter is active:
+  - groups without a matching note are hidden
+  - groups with matches open automatically
+  - the counts only include matching notes
+  - "No notes have all the selected tags." is shown if nothing matches
+
+**Why this approach:**
+- **Simple and correct.** The AND check is one line of plain code, easy to read and test, and doesn't depend on how Supabase combines filters.
+- **No extra database calls.** The data is already loaded for the note cards, so selecting a tag updates the sidebar instantly.
+- **Fits how the app is built.** The sidebar lives in the layout, and in Next.js a layout can't read the URL's search params. Filtering on the server would have needed a more complicated setup.
+- **Still follows the `lib/db.ts` rule.** The filter doesn't talk to the database. It only works on data that `getNotes()` returned.
+- **Ready for search.** `CLAUDE.md` asks for one function that applies search and tags together. `filterNotesByTags` is that single place, and the search branch can extend it.
+
+**When this should change:** if there were thousands of notes, loading all of them would get slow. Then the filter should move into the database, as a function in `lib/db.ts` that calls a SQL function using `group by note_id having count(distinct tag_id) = <number of selected tags>`. That returns only notes linked to every selected tag. For a personal notes app, that isn't needed yet.
+
+### Database changes
+
+The `tags` and `note_tags` tables already existed and were not recreated. I checked the live database first:
+- `tags.name` was already unique.
+- The `note_tags` primary key `(note_id, tag_id)` already stops the same tag being added to a note twice.
+- Both foreign keys already use `on delete cascade`.
+
+Only write access was missing. The new migration (`20261016092235_allow_public_write_tags.sql`):
+- lets `anon` create tags and add or remove tags on notes (renaming and deleting tags stay blocked)
+- adds a unique index on `lower(btrim(name))`, so, like collection names, "Work" and "work" are the same tag
+
+When you add a tag in the note view, `addTagToNote` reuses an existing tag with that name, ignoring case, or creates a new one.

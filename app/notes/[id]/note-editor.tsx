@@ -1,14 +1,18 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import { X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/submit-button";
-import type { Collection, Note } from "@/lib/db";
+import type { Collection, Note, Tag } from "@/lib/db";
 import {
+  addTagToNoteAction,
   assignNoteToCollectionAction,
   deleteNoteAction,
+  removeTagFromNoteAction,
   updateNoteAction,
   type SaveNoteState,
 } from "../actions";
@@ -73,12 +77,100 @@ function CollectionPicker({
   );
 }
 
+function TagEditor({ note, allTags }: { note: Note; allTags: Tag[] }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, startSaving] = useTransition();
+
+  // Suggest existing tags the note doesn't have yet.
+  const suggestions = allTags.filter(
+    (tag) => !note.tags.some((noteTag) => noteTag.id === tag.id),
+  );
+
+  function handleAdd(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    setError(null);
+
+    startSaving(async () => {
+      const result = await addTagToNoteAction(note.id, name);
+      if (result.error) setError(result.error);
+      else setName("");
+    });
+  }
+
+  function handleRemove(tag: Tag) {
+    setError(null);
+    startSaving(async () => {
+      const result = await removeTagFromNoteAction(note.id, tag.id);
+      if (result.error) setError(result.error);
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">Tags</span>
+        {note.tags.length ? (
+          <ul className="flex flex-wrap gap-1">
+            {note.tags.map((tag) => (
+              <li key={tag.id}>
+                <Badge variant="secondary" className="gap-1 pr-1 font-normal">
+                  {tag.name}
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(tag)}
+                    disabled={isSaving}
+                    aria-label={`Remove tag ${tag.name}`}
+                    className="rounded-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span className="text-sm text-muted-foreground">No tags yet.</span>
+        )}
+      </div>
+      <form onSubmit={handleAdd} className="flex flex-wrap items-center gap-2">
+        <Label htmlFor="new-tag" className="sr-only">
+          Add a tag
+        </Label>
+        <Input
+          id="new-tag"
+          list="tag-suggestions"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Add a tag…"
+          disabled={isSaving}
+          className="h-8 w-48"
+        />
+        <datalist id="tag-suggestions">
+          {suggestions.map((tag) => (
+            <option key={tag.id} value={tag.name} />
+          ))}
+        </datalist>
+        <Button type="submit" size="sm" variant="outline" disabled={isSaving || !name.trim()}>
+          Add
+        </Button>
+        <p aria-live="polite" className="text-sm text-muted-foreground">
+          {isSaving ? "Saving…" : error && <span className="text-destructive">{error}</span>}
+        </p>
+      </form>
+    </div>
+  );
+}
+
 export function NoteEditor({
   note,
   collections,
+  allTags,
 }: {
   note: Note;
   collections: Collection[];
+  allTags: Tag[];
 }) {
   const [state, formAction, pending] = useActionState(
     updateNoteAction,
@@ -123,6 +215,7 @@ export function NoteEditor({
       </div>
 
       <CollectionPicker note={note} collections={collections} />
+      <TagEditor note={note} allTags={allTags} />
 
       <form id="note-form" action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="id" value={note.id} />
