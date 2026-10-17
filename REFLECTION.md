@@ -185,3 +185,82 @@ Full text search matches whole words by default. I compared three options on the
 - **Simple:** one small function used in three places.
 
 **Trade-off:** you can't choose a tag's colour, and with more than 8 tags colours repeat. If choosing colours becomes a requirement, the next step is a `color` column on `tags` (limited to the palette names with a check constraint) and a colour picker in the note view.
+
+## Authentication and private data
+
+**Branch:** `add-auth`. The notes app moved from `app/notes/` to `app/workspace/` on this branch, so the `app/notes/…` paths in the sections above now live under `app/workspace/`. Old `/notes` URLs redirect to `/workspace` (`next.config.ts`).
+
+### Sign-up, sign-in and sign-out
+
+**The requirement:** email and password accounts through Supabase Auth, a sign-up and a sign-in page, a visible sign-out button, and every page under `/workspace` checked on the server. Signed-out visitors go to the sign-in page, signing in leads to `/workspace`, signing out leads back to the sign-in page. No custom password logic, and nothing stored by the app itself.
+
+**What I chose:**
+- **Server Actions instead of browser calls.** `/login` and `/signup` (`app/(auth)/`) share one form, `AuthForm`. It posts to `signInAction` and `signUpAction`, which pass the email and password straight to Supabase on the server. The starter's forms called Supabase from the browser. With Server Actions, the browser never talks to Supabase Auth directly, and the session cookie is set by the server.
+- **One central place for auth, like `lib/db.ts` for data.** `lib/auth.ts` holds every Supabase Auth call: `getCurrentUser`, `requireUser`, `signUp`, `signIn`, `signOut` and `confirmEmail`. Pages and Server Actions never import the Supabase client.
+- **`getClaims()` for the server check.** `requireUser()` uses `getClaims()`, which verifies the session token's signature. Supabase's docs warn that `getSession()` only reads the cookie, and anyone can forge a cookie. I tested this: a request to `/workspace` with a forged session cookie is still sent to `/login`.
+- **Checks at several levels, not only in the proxy.** The proxy (`lib/supabase/proxy.ts`) sends signed-out visitors to `/login` before anything loads. Next.js' authentication guide says the proxy shouldn't be the only line of defence, and that a layout check alone isn't enough either, because layouts don't re-run on navigation. So `/workspace`, each note page, the sidebar, the header and all 10 workspace Server Actions call `requireUser()` themselves.
+- **Email confirmation.** The project requires new users to confirm their email. After sign-up, the form says "check your email" instead of redirecting. The link in the email goes to `/auth/confirm`. That route accepts both forms of link: a `code` from Supabase's default email, and a `token_hash` from a custom template. Free-tier projects on the built-in email sender can't change the template, so the `code` form is the one actually used. The `next` parameter only accepts paths inside the app, so the link can't be used to send someone to another site.
+
+**Decisions made with the user:** the pages are `/login` and `/signup`, matching the rule in `CLAUDE.md`. The starter's `/auth/login` and `/auth/sign-up` stay untouched as leftovers.
+
+### Every note, collection and tag belongs to one user
+
+**The requirement:** each note, collection and tag has exactly one owner, and a user can only see and change their own. Notes can only be linked to their owner's tags. Two users may use the same tag name, but one user can't have it twice. The temporary open access for `anon` goes away, row-level security enforces all of this even outside the app, and the existing notes go to the current user.
+
+**Migration `20261017201533_make_data_private_per_user.sql`:**
+- `user_id` on `notes`, `collections`, `tags` and `note_tags`. It's `not null`, defaults to `auth.uid()` (so `lib/db.ts` didn't need changes to set it), and its rows are deleted with the user.
+- **Existing rows:** they went to the only user that existed. The migration stops instead of guessing if there isn't exactly one user. No rows were dropped and `notes` wasn't recreated.
+- **Same owner on both sides of a link:** the foreign keys are two columns, `(collection_id, user_id)` and `(note_id, user_id)` / `(tag_id, user_id)`. The database itself refuses to put a note in another user's collection or link it to another user's tag, whatever the policies say.
+- **Names unique per user:** the unique indexes are now on `(user_id, lower(btrim(name)))` for tags and collections. I made collection names per user too. Otherwise one user's "Work" collection would block every other user from using that name, and the error would reveal that the name exists.
+- **Access:** the 13 "Anyone can…" policies and all `anon` grants are removed. `authenticated` gets only the operations the app uses, with policies on `(select auth.uid()) = user_id`. Update policies check the owner before and after, so a row can't be handed to another user. `(select auth.uid())` runs once per query instead of once per row.
+
+**Testing before and after:**
+- **Before applying:** I ran the migration inside a transaction that was rolled back, on the real database. All 5 notes, 3 collections, 3 tags and 6 links got an owner, and the database was unchanged afterwards.
+- **Signed out, through the Data API:** reading or writing any table returns `permission denied`.
+- **A temporary second user,** also in a rolled-back transaction. That user:
+  - sees none of the first user's rows
+  - can't update or delete them
+  - can't link its own note to the first user's tag or put it in their collection
+  - can't create a note owned by someone else or hand its own note away
+  - can reuse a tag name the first user has, but can't add the same name twice for itself
+- **The first user** still sees exactly their 5 notes, 3 collections, 3 tags and 6 links.
+
+**Problem found while testing: notes stopped loading with their tags**
+
+After the migration, `getNotes()`'s `tags(id, name)` failed with "Could not find a relationship between 'notes' and 'tags'". Supabase's Data API (PostgREST) only treats a table as the link between two others when the link's foreign keys are part of its primary key. The foreign keys now include `user_id`, but the primary key was still `(note_id, tag_id)`. Reloading the schema cache didn't help.
+
+**Fix:** a second migration, `20261017202003_include_owner_in_note_tags_key.sql`, makes the primary key `(note_id, tag_id, user_id)`. This doesn't allow the same tag twice on a note: a note has only one owner, so for a given `note_id` there's only one possible `user_id`. I didn't edit the applied migration; the fix is a new one. Afterwards the access tests passed again. Supabase's performance advisor reported nothing for the new tables.
+
+**Moving the data to another account:** the user later asked to move the existing data from the first test account to a second one. The two-column foreign keys mean notes, collections, tags and links all have to change owner together, so I did it in one SQL statement, which the database checks once at the end. I ran it as a dry run first. It was a one-off data change with `supabase db query`, not a migration, because it doesn't change the schema and would otherwise put personal email addresses in the repo.
+
+### Browser storage
+
+No app code uses local or session storage. The session is kept in cookies that the server checks. The only thing in local storage is the theme switcher's light or dark choice, which `next-themes` keeps.
+
+### `/code-review` on pull request #6
+
+**Command:** `/code-review` (Claude Code's built-in review), run on the branch `add-auth` after opening pull request #6. It reported 9 findings without running the code. I checked each one against the code. Four were fixed on the branch:
+
+**Finding 1: the confirmation link could send users to another site (security)**
+
+`/auth/confirm` follows its `next` parameter after signing the user in. The check only rejected values starting with `//`. A value like `/\evil.com` got through, and browsers read the backslash as a slash, so a real confirmation link with that `next` would land the newly signed-in user on another site.
+
+**Fix:** `next` is now parsed as a URL against the app's own address and only followed if the result stays on the same origin; otherwise the user goes to `/workspace` (`app/auth/confirm/route.ts`). I tested 9 inputs: `//evil.com`, `/\evil.com`, `/\/evil.com`, `https://evil.com` and `javascript:alert(1)` all fall back to `/workspace`, while `/workspace/3?x=1` still works.
+
+**Finding 2: an expired session broke workspace actions**
+
+Workspace actions (saving, searching, adding tags) are POST requests to `/workspace`. When the session could no longer be refreshed, for example after signing out in another tab, the proxy answered them with a redirect to the `/login` page. The action then received an HTML page instead of its answer and failed: search threw an unhandled error, and the other actions showed a generic error instead of going to `/login`.
+
+**Fix:** the proxy lets Server Action requests through (Next.js marks them with a `next-action` header). Each action already checks the user with `requireUser()`, and Next.js carries out that redirect to `/login` properly for actions (`lib/supabase/proxy.ts`). Tested without a session: an action request is no longer redirected by the proxy, while a normal page request still goes to `/login`.
+
+**Finding 3: adding a tag could leave an unused tag behind**
+
+`addTagToNote` created the tag first and linked it to the note second. If the note had been deleted in the meantime, the link failed with a technical foreign key error, but the new tag stayed and showed up in the tag filter with no notes.
+
+**Fix:** `addTagToNote` checks that the note exists before creating anything. If the note is deleted between that check and the link, the foreign key error (`23503`) is turned into the same plain message, "This note no longer exists." (`lib/db.ts`).
+
+**Finding 4: `note_tags.user_id` had no direct link to `auth.users`**
+
+The other tables' `user_id` references `auth.users` directly, as the rule in `CLAUDE.md` says. `note_tags.user_id` was only tied to an account through its two-column foreign keys to notes and tags. That already kept it valid and removed the links with a deleted account, but the database and the documented rule disagreed.
+
+**Fix:** a new migration (`20261017232853_link_note_tags_owner_to_auth_users.sql`) adds the direct foreign key with `on delete cascade`. I dry-ran it in a rolled-back transaction first. It changed no rows, and the index it needs already existed. The per-user access tests passed again afterwards.

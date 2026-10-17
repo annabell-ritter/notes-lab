@@ -6,7 +6,7 @@ export default function NoteNotFound() {
       <p className="text-sm font-medium">This note doesn&rsquo;t exist.</p>
       <p className="text-sm text-muted-foreground">
         It may have been deleted.{" "}
-        <Link href="/notes" className="underline underline-offset-4">
+        <Link href="/workspace" className="underline underline-offset-4">
           Back to all notes
         </Link>
       </p>

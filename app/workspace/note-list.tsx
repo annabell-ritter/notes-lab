@@ -12,7 +12,7 @@ export function NoteList({ notes }: { notes: Note[] }) {
   return (
     <ul className="flex flex-col gap-1">
       {notes.map((note) => {
-        const href = `/notes/${note.id}`;
+        const href = `/workspace/${note.id}`;
         const isActive = pathname === href;
 
         return (

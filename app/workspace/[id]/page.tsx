@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { requireUser } from "@/lib/auth";
 import { getCollections, getNote, getTags } from "@/lib/db";
 import { NoteEditor } from "./note-editor";
 
 async function NoteLoader({ params }: { params: Promise<{ id: string }> }) {
+  await requireUser();
+
   const { id } = await params;
   const noteId = Number(id);
   if (!Number.isInteger(noteId) || noteId <= 0) notFound();

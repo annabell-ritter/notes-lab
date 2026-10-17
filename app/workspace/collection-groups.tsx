@@ -25,7 +25,7 @@ export function CollectionGroups({
   collections: Collection[];
 }) {
   const pathname = usePathname();
-  const activeNoteId = Number(pathname.match(/^\/notes\/(\d+)$/)?.[1]);
+  const activeNoteId = Number(pathname.match(/^\/workspace\/(\d+)$/)?.[1]);
   const activeNote = notes.find((note) => note.id === activeNoteId);
   const activeGroup = activeNote ? groupKey(activeNote.collection_id) : null;
 
