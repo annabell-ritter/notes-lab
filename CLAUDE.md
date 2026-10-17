@@ -34,6 +34,11 @@ A notes app with collections, tags and search, backed by Supabase. The full requ
 - **Search** covers all notes (title and body), ignores the open collection, and respects the active tag filter. Use one function that applies search and tags together. Debounce the input.
 - **Empty states:** always show a clear message, never a blank screen: empty collection, no search results, no tags matching, no notes at all.
 
+### Authentication
+- Use Supabase Auth for all sign-in and session handling. Never build custom auth or store passwords yourself.
+- Every page under `/workspace` requires a signed-in user. Check this on the server and redirect to `/login` if they are not signed in.
+- After sign-out, redirect to `/login`.
+
 ## Workflow
 
 - The database structure is set up directly on `main` before any feature work. After that, build one feature per branch with one pull request per branch, in the order given in `PROJECT_BRIEF.md`. Don't commit features to `main` directly.
