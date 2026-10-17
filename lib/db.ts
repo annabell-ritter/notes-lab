@@ -37,8 +37,9 @@ const NOTE_COLUMNS =
 const COLLECTION_COLUMNS = "id, name, created_at";
 const TAG_COLUMNS = "id, name";
 
-// Postgres error code for a unique constraint violation.
+// Postgres error codes for a unique constraint violation and a foreign key violation.
 const UNIQUE_VIOLATION = "23505";
+const FOREIGN_KEY_VIOLATION = "23503";
 const DUPLICATE_COLLECTION_MESSAGE = "A collection with this name already exists.";
 
 export async function getNotes(): Promise<Note[]> {
@@ -181,6 +182,15 @@ export async function getTags(): Promise<Tag[]> {
 export async function addTagToNote(noteId: number, name: string): Promise<void> {
   const supabase = await createClient();
   const tagName = name.trim();
+
+  // Check the note first, so a note that was deleted (or isn't the user's) doesn't leave a new, unused tag behind.
+  const { data: note, error: noteError } = await supabase
+    .from("notes")
+    .select("id")
+    .eq("id", noteId)
+    .maybeSingle();
+  if (noteError) throw new Error(`Could not add tag: ${noteError.message}`);
+  if (!note) throw new Error("This note no longer exists.");
   const sameName = (tag: Tag) =>
     tag.name.trim().toLowerCase() === tagName.toLowerCase();
 
@@ -203,6 +213,8 @@ export async function addTagToNote(noteId: number, name: string): Promise<void> 
     .from("note_tags")
     .insert({ note_id: noteId, tag_id: tag.id });
 
+  // The note was deleted between the check above and here.
+  if (error?.code === FOREIGN_KEY_VIOLATION) throw new Error("This note no longer exists.");
   if (error && error.code !== UNIQUE_VIOLATION) {
     throw new Error(`Could not add tag: ${error.message}`);
   }

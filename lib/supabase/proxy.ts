@@ -56,7 +56,12 @@ export async function updateSession(request: NextRequest) {
     pathname === "/signup" ||
     pathname.startsWith("/auth/");
 
-  if (!user && !isPublic) {
+  // Server Actions (marked by Next.js with a `next-action` header) are not redirected here: the action
+  // would receive the /login page instead of its response and fail. Each action checks the user itself
+  // with requireUser(), whose redirect to /login Next.js carries out properly for actions.
+  const isServerAction = request.headers.has("next-action");
+
+  if (!user && !isPublic && !isServerAction) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

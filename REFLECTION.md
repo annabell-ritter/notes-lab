@@ -236,3 +236,31 @@ After the migration, `getNotes()`'s `tags(id, name)` failed with "Could not find
 ### Browser storage
 
 No app code uses local or session storage. The session is kept in cookies that the server checks. The only thing in local storage is the theme switcher's light or dark choice, which `next-themes` keeps.
+
+### `/code-review` on pull request #6
+
+**Command:** `/code-review` (Claude Code's built-in review), run on the branch `add-auth` after opening pull request #6. It reported 9 findings without running the code. I checked each one against the code. Four were fixed on the branch:
+
+**Finding 1: the confirmation link could send users to another site (security)**
+
+`/auth/confirm` follows its `next` parameter after signing the user in. The check only rejected values starting with `//`. A value like `/\evil.com` got through, and browsers read the backslash as a slash, so a real confirmation link with that `next` would land the newly signed-in user on another site.
+
+**Fix:** `next` is now parsed as a URL against the app's own address and only followed if the result stays on the same origin; otherwise the user goes to `/workspace` (`app/auth/confirm/route.ts`). I tested 9 inputs: `//evil.com`, `/\evil.com`, `/\/evil.com`, `https://evil.com` and `javascript:alert(1)` all fall back to `/workspace`, while `/workspace/3?x=1` still works.
+
+**Finding 2: an expired session broke workspace actions**
+
+Workspace actions (saving, searching, adding tags) are POST requests to `/workspace`. When the session could no longer be refreshed, for example after signing out in another tab, the proxy answered them with a redirect to the `/login` page. The action then received an HTML page instead of its answer and failed: search threw an unhandled error, and the other actions showed a generic error instead of going to `/login`.
+
+**Fix:** the proxy lets Server Action requests through (Next.js marks them with a `next-action` header). Each action already checks the user with `requireUser()`, and Next.js carries out that redirect to `/login` properly for actions (`lib/supabase/proxy.ts`). Tested without a session: an action request is no longer redirected by the proxy, while a normal page request still goes to `/login`.
+
+**Finding 3: adding a tag could leave an unused tag behind**
+
+`addTagToNote` created the tag first and linked it to the note second. If the note had been deleted in the meantime, the link failed with a technical foreign key error, but the new tag stayed and showed up in the tag filter with no notes.
+
+**Fix:** `addTagToNote` checks that the note exists before creating anything. If the note is deleted between that check and the link, the foreign key error (`23503`) is turned into the same plain message, "This note no longer exists." (`lib/db.ts`).
+
+**Finding 4: `note_tags.user_id` had no direct link to `auth.users`**
+
+The other tables' `user_id` references `auth.users` directly, as the rule in `CLAUDE.md` says. `note_tags.user_id` was only tied to an account through its two-column foreign keys to notes and tags. That already kept it valid and removed the links with a deleted account, but the database and the documented rule disagreed.
+
+**Fix:** a new migration (`20261017232853_link_note_tags_owner_to_auth_users.sql`) adds the direct foreign key with `on delete cascade`. I dry-ran it in a rolled-back transaction first. It changed no rows, and the index it needs already existed. The per-user access tests passed again afterwards.
