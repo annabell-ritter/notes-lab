@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 
 // All database reads and writes go through this module.
 // Pages, components and Server Actions call these functions and never use the Supabase client directly.
+// Every row belongs to one user. New rows get the signed-in user as owner through the user_id column default,
+// and row-level security limits every query here to that user's own rows.
 
 export type Tag = {
   id: number;
@@ -174,7 +176,7 @@ export async function getTags(): Promise<Tag[]> {
   return data;
 }
 
-// Reuses the tag if one with this name exists (ignoring case and spaces at either end), otherwise creates it.
+// Reuses the user's tag if one with this name exists (ignoring case and spaces at either end), otherwise creates it.
 // Adding a tag the note already has does nothing.
 export async function addTagToNote(noteId: number, name: string): Promise<void> {
   const supabase = await createClient();
@@ -190,7 +192,7 @@ export async function addTagToNote(noteId: number, name: string): Promise<void> 
       .select(TAG_COLUMNS)
       .single();
 
-    // Someone else created the same tag in the meantime: use theirs.
+    // The same tag was created in the meantime (for example from another tab): use that one.
     if (error?.code === UNIQUE_VIOLATION) tag = (await getTags()).find(sameName);
     else if (error) throw new Error(`Could not create tag: ${error.message}`);
     else tag = data;
