@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Plus } from "lucide-react";
+import { LogOut, Plus } from "lucide-react";
 import { SubmitButton } from "@/components/submit-button";
+import { requireUser } from "@/lib/auth";
 import { getCollections, getNotes } from "@/lib/db";
+import { signOutAction } from "../(auth)/actions";
 import { createNoteAction } from "./actions";
 import { CollectionGroups } from "./collection-groups";
 import { NewCollectionForm } from "./new-collection-form";
@@ -14,7 +16,25 @@ export const metadata: Metadata = {
   title: "Notes Lab",
 };
 
+async function UserMenu() {
+  const user = await requireUser();
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
+      <form action={signOutAction}>
+        <SubmitButton variant="outline" size="sm" pendingText="Signing out…">
+          <LogOut />
+          Sign out
+        </SubmitButton>
+      </form>
+    </div>
+  );
+}
+
 async function NotesSidebar() {
+  await requireUser();
+
   let notes, collections;
   try {
     [notes, collections] = await Promise.all([getNotes(), getCollections()]);
@@ -36,10 +56,13 @@ export default function NotesLayout({
 }>) {
   return (
     <div className="flex h-screen flex-col">
-      <header className="flex h-14 shrink-0 items-center border-b px-4">
-        <Link href="/notes" className="font-semibold">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+        <Link href="/workspace" className="font-semibold">
           Notes Lab
         </Link>
+        <Suspense>
+          <UserMenu />
+        </Suspense>
       </header>
       <NotesFilterProvider>
         <div className="flex min-h-0 flex-1">

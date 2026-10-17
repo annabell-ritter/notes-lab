@@ -47,18 +47,25 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  if (
-    request.nextUrl.pathname !== "/" &&
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth") &&
-    request.nextUrl.pathname !== "/notes" &&
-    !request.nextUrl.pathname.startsWith("/notes/")
-  ) {
-    // no user, potentially respond by redirecting the user to the login page
+  // A first, early gate. Protected pages and Server Actions still check the user
+  // themselves through lib/auth.ts, so this is not the only line of defence.
+  const { pathname } = request.nextUrl;
+  const isPublic =
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname.startsWith("/auth/");
+
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone();
-    url.pathname = "/auth/login";
-    return NextResponse.redirect(url);
+    url.pathname = "/login";
+    url.search = "";
+    const redirectResponse = NextResponse.redirect(url);
+    // Keep any cookies Supabase just refreshed or cleared, so browser and server stay in sync.
+    supabaseResponse.cookies
+      .getAll()
+      .forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
