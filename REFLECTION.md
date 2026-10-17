@@ -233,8 +233,6 @@ After the migration, `getNotes()`'s `tags(id, name)` failed with "Could not find
 
 **Moving the data to another account:** the user later asked to move the existing data from the first test account to a second one. The two-column foreign keys mean notes, collections, tags and links all have to change owner together, so I did it in one SQL statement, which the database checks once at the end. I ran it as a dry run first. It was a one-off data change with `supabase db query`, not a migration, because it doesn't change the schema and would otherwise put personal email addresses in the repo.
 
-### Left as it is
+### Browser storage
 
-- **Advisor warning from before this branch:** `public.rls_auto_enable()` is a `SECURITY DEFINER` function that anyone can call through the API. None of the migrations created it; it most likely came from a dashboard setting. Blocking public access to it is a small follow-up migration.
-- **Leaked password protection** (checking passwords against known leaks) is off. It's a dashboard setting, not code.
-- **Browser storage:** no app code uses local or session storage. The session is kept in cookies that the server checks. The only thing in local storage is the theme switcher's light or dark choice, which `next-themes` keeps.
+No app code uses local or session storage. The session is kept in cookies that the server checks. The only thing in local storage is the theme switcher's light or dark choice, which `next-themes` keeps.
