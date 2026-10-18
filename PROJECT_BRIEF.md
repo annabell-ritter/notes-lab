@@ -2,18 +2,17 @@
 
 ## Goal
 
-A notes app that stores all its data in Supabase, so notes stay available across devices. Notes can be grouped into collections, labelled with tags, and searched. The app runs locally with `npm run dev`. It is not deployed.
+A notes app that stores all its data in Supabase, so notes stay available across devices. Notes can be grouped into collections, labelled with tags, and searched. The app runs locally with `npm run dev`. It is not deployed. Each person signs in with their own account and only sees their own notes, collections and tags.
 
 ## Tools
 
 - Next.js (App Router), TypeScript, Tailwind CSS
 - Supabase, used through the `supabase-js` client
-- Do **not** use the Supabase MCP server. That comes later in the sprint.
+- Do **not** use the Supabase MCP server.
 
 ## Out of scope for now
 
-- Login and user accounts (later in the sprint)
-- Deployment and a live URL (later in the sprint)
+- Deployment and a live URL
 
 ## How the data fits together
 
@@ -23,9 +22,11 @@ A notes app that stores all its data in Supabase, so notes stay available across
 - Deleting a collection keeps its notes. They simply become uncollected.
 - A note can have many tags, and a tag can be on many notes.
 - The same tag cannot be added to the same note twice.
-- Tag names are unique.
+- Tag and collection names are unique per user. Different users can use the same name.
 - Deleting a note removes its links to tags. Deleting a tag removes its links to notes.
 - Notes must be searchable by title and body together.
+- Every note, collection and tag belongs to one user. A user can only see and change their own.
+- A note can only be linked to a collection or tag of the same user.
 
 **Decision on the existing notes table:**
 > Build on the existing notes table and add what is missing. Do not drop or recreate it, and keep the notes already stored in it. Check what the table already has against the data description above, then add only the missing pieces as a new change to the database structure.
@@ -33,6 +34,15 @@ A notes app that stores all its data in Supabase, so notes stay available across
 ## How the code is organised
 
 Keep all database reading and writing in one central place. Pages and components never talk to the database themselves. They ask that central place for what they need. Whenever a feature needs a new kind of database action, add a new function there.
+
+## Sign-in
+
+- Supabase Auth handles sign-up, sign-in and sessions. No custom login, and no passwords stored by the app.
+- New users confirm their email through a link, which signs them in and opens the workspace.
+- After signing in, the user lands in the workspace. Signed-in users who open the login or sign-up page are sent there too.
+- After signing out, the user lands on the login page.
+- The workspace is private. Signed-out visitors are sent to the login page, and every private page and action checks the user on the server.
+- Like data, all sign-in code lives in one central place.
 
 ## What the app must do
 
@@ -50,6 +60,7 @@ Keep all database reading and writing in one central place. Pages and components
    - a search finds nothing
    - no notes match the selected tags
    - there are no notes at all
+11. **Accounts:** users can sign up, sign in and sign out, and only ever see their own data.
 
 ## How we work
 
@@ -61,6 +72,7 @@ Keep all database reading and writing in one central place. Pages and components
   2. collections interface
   3. tag system
   4. search
-  5. optional task
+  5. tags-coloring
+  6. sign-in and private data per user
 - Commit messages describe the change in plain words. Never "updates" or "stuff".
 - Follow the rules in `CLAUDE.md`.
