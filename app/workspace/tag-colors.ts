@@ -4,42 +4,42 @@
 const TAG_COLORS = [
   {
     dot: "bg-blue-500",
-    pill: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300",
+    pill: "bg-blue-100 text-blue-900",
     border: "border-blue-500",
   },
   {
     dot: "bg-emerald-500",
-    pill: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
+    pill: "bg-emerald-100 text-emerald-900",
     border: "border-emerald-500",
   },
   {
     dot: "bg-amber-500",
-    pill: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300",
+    pill: "bg-amber-100 text-amber-900",
     border: "border-amber-500",
   },
   {
     dot: "bg-violet-500",
-    pill: "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300",
+    pill: "bg-violet-100 text-violet-900",
     border: "border-violet-500",
   },
   {
     dot: "bg-rose-500",
-    pill: "bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-300",
+    pill: "bg-rose-100 text-rose-900",
     border: "border-rose-500",
   },
   {
     dot: "bg-cyan-500",
-    pill: "bg-cyan-100 text-cyan-800 dark:bg-cyan-500/20 dark:text-cyan-300",
+    pill: "bg-cyan-100 text-cyan-900",
     border: "border-cyan-500",
   },
   {
     dot: "bg-orange-500",
-    pill: "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300",
+    pill: "bg-orange-100 text-orange-900",
     border: "border-orange-500",
   },
   {
     dot: "bg-lime-500",
-    pill: "bg-lime-100 text-lime-800 dark:bg-lime-500/20 dark:text-lime-300",
+    pill: "bg-lime-100 text-lime-900",
     border: "border-lime-500",
   },
 ];

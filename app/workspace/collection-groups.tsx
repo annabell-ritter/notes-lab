@@ -164,7 +164,7 @@ export function CollectionGroups({
   ];
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       {!notes.length && (
         <p className="p-2 text-sm text-muted-foreground">
           No notes yet. Create your first one with &ldquo;New note&rdquo;.
@@ -199,12 +199,12 @@ export function CollectionGroups({
                 onDone={() => setRenamingKey(null)}
               />
             ) : (
-              <div className="flex items-center gap-1 rounded-md hover:bg-accent">
+              <div className="flex items-center gap-1 rounded-md transition-colors hover:bg-accent">
                 <button
                   type="button"
                   onClick={() => toggle(group.key)}
                   aria-expanded={isOpen}
-                  className="flex min-w-0 flex-1 items-center gap-1 px-2 py-1.5 text-left text-sm font-medium"
+                  className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left text-sm font-medium"
                 >
                   <ChevronRight
                     className={cn(
@@ -234,7 +234,7 @@ export function CollectionGroups({
               </p>
             )}
             {isOpen && (
-              <div className="pb-1 pl-4">
+              <div className="pb-2 pl-4 pt-1">
                 {groupNotes.length ? (
                   <NoteList notes={groupNotes} />
                 ) : (

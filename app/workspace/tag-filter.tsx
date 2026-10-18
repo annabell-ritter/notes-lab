@@ -25,7 +25,7 @@ export function TagFilter({
   onClear: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-1.5 px-2 pb-3">
+    <div className="flex flex-col gap-2 px-2 pb-4">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">
           Filter by tags
@@ -41,7 +41,7 @@ export function TagFilter({
         )}
       </div>
       {tags.length ? (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {tags.map((tag) => {
             const isSelected = selected.has(tag.id);
             const color = tagColor(tag.id);
@@ -52,7 +52,7 @@ export function TagFilter({
                 onClick={() => onToggle(tag.id)}
                 aria-pressed={isSelected}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs transition-colors",
+                  "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors md:px-2 md:py-0.5",
                   isSelected
                     ? cn(color.pill, color.border, "font-medium")
                     : "hover:bg-accent",

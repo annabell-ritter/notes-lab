@@ -21,8 +21,8 @@ export function NoteList({ notes }: { notes: Note[] }) {
               href={href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "block rounded-md px-3 py-2 hover:bg-accent",
-                isActive && "bg-accent",
+                "block rounded-md px-3 py-2.5 transition-colors hover:bg-accent",
+                isActive && "bg-primary/10 hover:bg-primary/10",
               )}
             >
               <span className="block truncate text-sm font-medium">
