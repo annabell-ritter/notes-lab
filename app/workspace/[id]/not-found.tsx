@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function NoteNotFound() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+    <div className="flex flex-col gap-2 px-4 py-6 md:px-8 md:py-8">
       <p className="text-sm font-medium">This note doesn&rsquo;t exist.</p>
       <p className="text-sm text-muted-foreground">
         It may have been deleted.{" "}

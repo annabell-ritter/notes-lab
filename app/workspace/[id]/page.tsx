@@ -35,7 +35,7 @@ export default function NotePage({
 }) {
   return (
     <Suspense
-      fallback={<p className="p-6 text-sm text-muted-foreground">Loading note…</p>}
+      fallback={<p className="px-4 py-6 text-sm md:px-8 md:py-8 text-muted-foreground">Loading note…</p>}
     >
       <NoteLoader params={params} />
     </Suspense>

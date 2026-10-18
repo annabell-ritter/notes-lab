@@ -63,7 +63,7 @@ function CollectionPicker({
         value={collectionId ?? ""}
         onChange={handleChange}
         disabled={isMoving}
-        className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+        className="h-9 rounded-md border border-input bg-card px-3 text-base md:text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
       >
         <option value="">No collection</option>
         {collections.map((collection) => (
@@ -130,9 +130,9 @@ function TagEditor({ note, allTags }: { note: Note; allTags: Tag[] }) {
                     onClick={() => handleRemove(tag)}
                     disabled={isSaving}
                     aria-label={`Remove tag ${tag.name}`}
-                    className="rounded-sm opacity-60 hover:opacity-100 disabled:opacity-30"
+                    className="-my-1 grid size-6 place-items-center rounded-sm opacity-60 transition-opacity hover:opacity-100 disabled:opacity-30"
                   >
-                    <X className="size-3" />
+                    <X className="size-3.5" />
                   </button>
                 </Badge>
               </li>
@@ -153,7 +153,7 @@ function TagEditor({ note, allTags }: { note: Note; allTags: Tag[] }) {
           onChange={(event) => setName(event.target.value)}
           placeholder="Add a tag…"
           disabled={isSaving}
-          className="h-8 w-48"
+          className="h-9 w-full sm:h-8 sm:w-48"
         />
         <datalist id="tag-suggestions">
           {suggestions.map((tag) => (
@@ -197,7 +197,7 @@ export function NoteEditor({
   else if (state.savedAt) status = "Saved";
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+    <div className="flex max-w-3xl flex-col gap-6 px-4 py-6 md:px-8 md:py-8">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button type="submit" form="note-form" disabled={pending}>
@@ -237,7 +237,7 @@ export function NoteEditor({
           onChange={(event) => setTitle(event.target.value)}
           required
           placeholder="Title"
-          className="h-11 text-lg font-semibold md:text-lg"
+          className="h-14 text-2xl font-semibold tracking-tight md:text-2xl"
         />
         <Label htmlFor="body" className="sr-only">
           Note
@@ -249,7 +249,7 @@ export function NoteEditor({
           onChange={(event) => setBody(event.target.value)}
           rows={18}
           placeholder="Write your note…"
-          className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:text-sm"
+          className="w-full resize-y rounded-md border border-input bg-card px-4 py-3 leading-relaxed text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:text-sm"
         />
       </form>
     </div>

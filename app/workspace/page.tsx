@@ -13,7 +13,7 @@ async function WorkspaceHome() {
 
 export default function WorkspacePage() {
   return (
-    <div className="flex h-full items-center justify-center p-6">
+    <div className="px-4 py-6 md:px-8 md:py-8">
       <Suspense>
         <WorkspaceHome />
       </Suspense>

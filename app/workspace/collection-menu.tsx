@@ -55,7 +55,7 @@ export function CollectionMenu({
           type="button"
           variant="ghost"
           size="icon"
-          className="size-7 shrink-0"
+          className="size-9 shrink-0 md:size-7"
           disabled={isDeleting}
           aria-label={`Options for ${collection.name}`}
         >
