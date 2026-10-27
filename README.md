@@ -39,9 +39,12 @@ You need Node.js and a free Supabase project.
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your-project-url
    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+   SITE_URL=http://localhost:3000
    ```
 
    Where to find the values: open your project in the [Supabase dashboard](https://supabase.com/dashboard) and click **Connect** (or go to **Project Settings → API**). Copy the **Project URL** and the **publishable key** (the older **anon** key also works).
+
+   `SITE_URL` is the address of the app itself. The sign-up confirmation email links back to it, so set it to the real address when the app is deployed. It has no `NEXT_PUBLIC_` prefix because only the server reads it.
 
 3. Set up the database tables by linking your project and applying the migrations:
 
