@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ChevronLeft, LogOut, Plus } from "lucide-react";
 import { SubmitButton } from "@/components/submit-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { requireUser } from "@/lib/auth";
 import { getCollections, getNotes } from "@/lib/db";
 import { signOutAction } from "../(auth)/actions";
@@ -65,9 +66,12 @@ export default function NotesLayout({
           <span aria-hidden className="size-2.5 rounded-full bg-primary" />
           Notes Lab
         </Link>
-        <Suspense>
-          <UserMenu />
-        </Suspense>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Suspense>
+            <UserMenu />
+          </Suspense>
+        </div>
       </header>
       <NotesFilterProvider>
         {/* Phones show one screen at a time: search and the note list, or the open note (marked by NoteViewFlag).
