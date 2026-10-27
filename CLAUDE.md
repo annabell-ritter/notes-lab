@@ -11,10 +11,10 @@ A notes app with collections, tags and search, backed by Supabase. The full requ
 ## Stack
 
 - Next.js App Router, TypeScript, Tailwind CSS, shadcn-style UI components in `components/ui/`
-- Supabase through `@supabase/ssr` / `supabase-js`. The clients are in `lib/supabase/`: `server.ts` for Server Components, Server Actions and Route Handlers, `client.ts` for the browser. The app itself only uses the server client; `client.ts` is only used by starter leftovers.
+- Supabase through `@supabase/ssr` / `supabase-js`. The clients are in `lib/supabase/`: `server.ts` for Server Components, Server Actions and Route Handlers, `client.ts` for the browser. The app itself only uses the server client; `client.ts` is not imported anywhere.
 - Sign-in lives in `app/(auth)/` (`/login`, `/signup`, and their Server Actions in `actions.ts`), with all Supabase Auth calls in `lib/auth.ts`. The private area is `app/workspace/`.
-- The project started from the Supabase Next.js starter. These parts are leftovers: `app/auth/*` (except `app/auth/confirm/route.ts`, which the sign-up confirmation email uses), `app/protected/`, `components/*-form.tsx`, `components/auth-button.tsx`, `components/logout-button.tsx` and the tutorial components. Don't build on them or remove them unless asked.
-- `proxy.ts` → `lib/supabase/proxy.ts` refreshes the session and sends signed-out visitors to `/login` from every route except `/`, `/login`, `/signup` and `/auth/*`. A new public route has to be added to those exceptions. The proxy is only a first gate: every private page and Server Action still checks the user itself (see Authentication).
+- The project started from the Supabase Next.js starter. These parts are leftovers: `app/auth/error/page.tsx` and the tutorial components. `app/auth/confirm/route.ts` is used by the sign-up confirmation email. Don't build on the leftovers or remove them unless asked.
+- `proxy.ts` → `lib/supabase/proxy.ts` refreshes the session and sends signed-out visitors to `/login` from every route except `/`, `/login`, `/signup`, `/auth/confirm` and `/auth/error`. A new public route has to be added to those exceptions. The proxy is only a first gate: every private page and Server Action still checks the user itself (see Authentication).
 
 ## Rules
 
