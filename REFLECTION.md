@@ -201,7 +201,7 @@ Full text search matches whole words by default. I compared three options on the
 - **Checks at several levels, not only in the proxy.** The proxy (`lib/supabase/proxy.ts`) sends signed-out visitors to `/login` before anything loads. Next.js' authentication guide says the proxy shouldn't be the only line of defence, and that a layout check alone isn't enough either, because layouts don't re-run on navigation. So `/workspace`, each note page, the sidebar, the header and all 10 workspace Server Actions call `requireUser()` themselves.
 - **Email confirmation.** The project requires new users to confirm their email. After sign-up, the form says "check your email" instead of redirecting. The link in the email goes to `/auth/confirm`. That route accepts both forms of link: a `code` from Supabase's default email, and a `token_hash` from a custom template. Free-tier projects on the built-in email sender can't change the template, so the `code` form is the one actually used. The `next` parameter only accepts paths inside the app, so the link can't be used to send someone to another site.
 
-**Decisions made with the user:** the pages are `/login` and `/signup`, matching the rule in `CLAUDE.md`. The starter's `/auth/login` and `/auth/sign-up` stay untouched as leftovers.
+**Decisions made with the user:** the pages are `/login` and `/signup`, matching the rule in `CLAUDE.md`. The starter's `/auth/login` and `/auth/sign-up` stay untouched as leftovers. They were later removed in pull request #11, after a security audit.
 
 ### Every note, collection and tag belongs to one user
 
@@ -264,3 +264,37 @@ Workspace actions (saving, searching, adding tags) are POST requests to `/worksp
 The other tables' `user_id` references `auth.users` directly, as the rule in `CLAUDE.md` says. `note_tags.user_id` was only tied to an account through its two-column foreign keys to notes and tags. That already kept it valid and removed the links with a deleted account, but the database and the documented rule disagreed.
 
 **Fix:** a new migration (`20261017232853_link_note_tags_owner_to_auth_users.sql`) adds the direct foreign key with `on delete cascade`. I dry-ran it in a rolled-back transaction first. It changed no rows, and the index it needs already existed. The per-user access tests passed again afterwards.
+
+## Password reset
+
+**Branch:** `password-reset-flow`, pull request #13.
+
+**The requirement:** a "Forgot your password?" link on the sign-in page that sends a reset email through Supabase Auth, using Supabase's standard flow and fitting the current security setup.
+
+**What I chose:**
+- **The standard Supabase flow, through Server Actions.** `/forgot-password` sends the email with `resetPasswordForEmail`. The link goes through the existing `/auth/confirm`, which signs the user in, and then opens `/reset-password`, where `updateUser` sets the new password. As with sign-up, all Auth calls are in `lib/auth.ts`, and the email link is built from `SITE_URL`.
+- **The same answer for every email.** The page always says "If an account exists for this email, we sent a link", so it doesn't reveal which emails have accounts.
+- **Only a fresh reset session may set a new password.** The starter's change-password page accepted any signed-in session. Here, `hasRecentRecovery()` checks the verified `amr` claim for a recovery sign-in from the last 15 minutes, so a normal session can't change the password. After the change, the user's other sessions are signed out.
+- **`/reset-password` outside `app/(auth)/`.** That layout sends signed-in users to `/workspace`, and the user is signed in when they arrive from the reset link. Only `/forgot-password` was added to the proxy's public routes.
+
+### `/code-review` on pull request #13
+
+**Command:** `/code-review` (Claude Code's built-in review), run on the branch `password-reset-flow` after opening pull request #13. It reviewed the code without running it. I checked each finding against the code, and these were fixed on the branch:
+
+**Finding: an expired reset window failed silently**
+
+If the 15 minutes ran out while the form was open, submitting sent the user to `/workspace` without changing the password or saying why. The user would think the new password was set, and the next sign-in would fail.
+
+**Fix:** the Server Action checks `hasRecentRecovery()` itself and shows "This reset link has expired" with how to get a new one (`app/(auth)/actions.ts`). The page still redirects through `requireRecoverySession()`.
+
+**Finding: a failed sign-out of other sessions left the user stuck**
+
+The password was already changed when signing out the other sessions failed, but the form showed an error. A retry with the same password was then rejected by Supabase as unchanged.
+
+**Fix:** that failure is logged on the server and the user continues to `/workspace` (`lib/auth.ts`).
+
+**Finding: `next` wasn't encoded in email links**
+
+`confirmUrl()` put `next` into the link as plain text. A future `next` with `?` or `&` would have been cut short.
+
+**Fix:** `next` is set with `url.searchParams.set` (`app/(auth)/actions.ts`). Sign-up and reset were tested again in the browser afterwards.

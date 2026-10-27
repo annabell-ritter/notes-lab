@@ -25,6 +25,7 @@ export function AuthForm({
   switchPrompt,
   switchHref,
   switchText,
+  forgotPasswordHref,
 }: {
   action: (state: AuthFormState, formData: FormData) => Promise<AuthFormState>;
   title: string;
@@ -35,6 +36,7 @@ export function AuthForm({
   switchPrompt: string;
   switchHref: string;
   switchText: string;
+  forgotPasswordHref?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
 
@@ -71,6 +73,14 @@ export function AuthForm({
                 autoComplete={passwordAutoComplete}
                 required
               />
+              {forgotPasswordHref && (
+                <Link
+                  href={forgotPasswordHref}
+                  className="justify-self-end text-sm underline-offset-4 hover:underline"
+                >
+                  Forgot your password?
+                </Link>
+              )}
             </div>
             {state.error && (
               <p role="alert" className="text-sm text-destructive">

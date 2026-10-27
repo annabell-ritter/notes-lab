@@ -12,16 +12,16 @@ A notes app with collections, tags and search, backed by Supabase. The full requ
 
 - Next.js App Router, TypeScript, Tailwind CSS, shadcn-style UI components in `components/ui/`
 - Supabase through `@supabase/ssr` / `supabase-js`. The clients are in `lib/supabase/`: `server.ts` for Server Components, Server Actions and Route Handlers, `client.ts` for the browser. The app itself only uses the server client; `client.ts` is not imported anywhere.
-- Sign-in lives in `app/(auth)/` (`/login`, `/signup`, and their Server Actions in `actions.ts`), with all Supabase Auth calls in `lib/auth.ts`. The private area is `app/workspace/`.
+- Sign-in lives in `app/(auth)/` (`/login`, `/signup`, `/forgot-password`, and their Server Actions in `actions.ts`), with all Supabase Auth calls in `lib/auth.ts`. The set-new-password page is `app/reset-password/`. The private area is `app/workspace/`.
 - The project started from the Supabase Next.js starter. These parts are leftovers: `app/auth/error/page.tsx` and the tutorial components. `app/auth/confirm/route.ts` is used by the sign-up confirmation email. Don't build on the leftovers or remove them unless asked.
-- `proxy.ts` → `lib/supabase/proxy.ts` refreshes the session and sends signed-out visitors to `/login` from every route except `/`, `/login`, `/signup`, `/auth/confirm` and `/auth/error`. A new public route has to be added to those exceptions. The proxy is only a first gate: every private page and Server Action still checks the user itself (see Authentication).
+- `proxy.ts` → `lib/supabase/proxy.ts` refreshes the session and sends signed-out visitors to `/login` from every route except `/`, `/login`, `/signup`, `/forgot-password`, `/auth/confirm` and `/auth/error`. A new public route has to be added to those exceptions. The proxy is only a first gate: every private page and Server Action still checks the user itself (see Authentication).
 
 ## Rules
 
 ### Data access
 - All data reads and writes go through `lib/db.ts`. Components, pages and Server Actions never import the Supabase client and never call `.from()` or `.rpc()` directly.
 - A new kind of database action means a new function in `db.ts`, such as `getNotes`, `assignNoteToCollection` or `addTagToNote`.
-- All Supabase Auth calls go through `lib/auth.ts` (`getCurrentUser`, `requireUser`, `signIn`, `signUp`, `signOut`, `confirmEmail`), the same way data goes through `db.ts`.
+- All Supabase Auth calls go through `lib/auth.ts` (`getCurrentUser`, `requireUser`, `requireRecoverySession`, `hasRecentRecovery`, `signIn`, `signUp`, `signOut`, `confirmEmail`, `requestPasswordReset`, `updatePassword`), the same way data goes through `db.ts`.
 
 ### Database
 - Change the schema only through new migration files in `supabase/migrations/`, created with the Supabase CLI (`npx supabase migration new <name>`, `npx supabase db push`).
@@ -44,6 +44,7 @@ A notes app with collections, tags and search, backed by Supabase. The full requ
 - `requireUser()` verifies the session with `getClaims()`. Never trust the cookie as it is, and never use `getSession()` for this check.
 - After sign-in, redirect to `/workspace`. Signed-in users who open `/login` or `/signup` are also sent to `/workspace`.
 - The sign-up confirmation email links to `/auth/confirm`, which signs the user in and opens `/workspace`.
+- Password reset: `/forgot-password` sends the email through `requestPasswordReset()`, with the link built from `SITE_URL`. It opens `/auth/confirm`, then `/reset-password`. Only a session from a reset link opened in the last 15 minutes may set a new password (`requireRecoverySession()`). A normal session can't. After the change, the user's other sessions are signed out.
 - After sign-out, redirect to `/login`.
 - Never keep user data in the browser's local or session storage. The session lives in cookies that the server checks.
 - A UI preference such as the theme may be kept in local storage; notes, tags, collections and account data may not.

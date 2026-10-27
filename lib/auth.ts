@@ -27,6 +27,31 @@ export async function requireUser(): Promise<CurrentUser> {
   return user;
 }
 
+// How long after opening a reset link the user may set a new password.
+const RECOVERY_WINDOW_SECONDS = 15 * 60;
+
+// Only a session that was just created from a password reset link may change the password.
+// A normal session, such as a stolen cookie, can't.
+export async function hasRecentRecovery(): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) return false;
+
+  const oldestAllowed = Math.floor(Date.now() / 1000) - RECOVERY_WINDOW_SECONDS;
+  return (data.claims.amr ?? []).some(
+    (entry) =>
+      typeof entry !== "string" && entry.method === "recovery" && entry.timestamp >= oldestAllowed,
+  );
+}
+
+// For the set-new-password page: sends signed-out visitors to /login and
+// signed-in users without a recent reset link to /workspace.
+export async function requireRecoverySession(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!(await hasRecentRecovery())) redirect("/workspace");
+  return user;
+}
+
 export async function signUp(
   email: string,
   password: string,
@@ -54,6 +79,33 @@ export async function signOut(): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
+}
+
+// Supabase sends the email only if an account exists, and answers the same either way,
+// so the caller can't tell which emails have accounts.
+export async function requestPasswordReset(email: string, redirectTo: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  if (!error) return;
+
+  console.error("Password reset email failed:", error);
+  if (error.status === 429) {
+    throw new Error("Too many reset emails were requested. Wait a while and try again.");
+  }
+  throw new Error("Could not send the reset email. Try again later.");
+}
+
+// Sets the new password, then signs out the user's other sessions, in case the reset
+// happened because someone else had access to the account.
+export async function updatePassword(password: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+
+  // The password is already changed at this point, so a failure here must not look like the change failed:
+  // a retry with the same password would then be rejected as unchanged.
+  const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
+  if (signOutError) console.error("Signing out other sessions failed:", signOutError);
 }
 
 // The confirmation link arrives either with a PKCE `code` (default email template)

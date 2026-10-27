@@ -18,6 +18,7 @@ export default function LoginPage() {
       switchPrompt="Don't have an account?"
       switchHref="/signup"
       switchText="Sign up"
+      forgotPasswordHref="/forgot-password"
     />
   );
 }
