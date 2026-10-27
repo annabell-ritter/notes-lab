@@ -21,7 +21,7 @@ A notes app with collections, tags and search, backed by Supabase. The full requ
 ### Data access
 - All data reads and writes go through `lib/db.ts`. Components, pages and Server Actions never import the Supabase client and never call `.from()` or `.rpc()` directly.
 - A new kind of database action means a new function in `db.ts`, such as `getNotes`, `assignNoteToCollection` or `addTagToNote`.
-- All Supabase Auth calls go through `lib/auth.ts` (`getCurrentUser`, `requireUser`, `requireRecoverySession`, `signIn`, `signUp`, `signOut`, `confirmEmail`, `requestPasswordReset`, `updatePassword`), the same way data goes through `db.ts`.
+- All Supabase Auth calls go through `lib/auth.ts` (`getCurrentUser`, `requireUser`, `requireRecoverySession`, `hasRecentRecovery`, `signIn`, `signUp`, `signOut`, `confirmEmail`, `requestPasswordReset`, `updatePassword`), the same way data goes through `db.ts`.
 
 ### Database
 - Change the schema only through new migration files in `supabase/migrations/`, created with the Supabase CLI (`npx supabase migration new <name>`, `npx supabase db push`).
