@@ -54,7 +54,8 @@ export async function updateSession(request: NextRequest) {
     pathname === "/" ||
     pathname === "/login" ||
     pathname === "/signup" ||
-    pathname.startsWith("/auth/");
+    pathname === "/auth/confirm" ||
+    pathname === "/auth/error";
 
   // Server Actions (marked by Next.js with a `next-action` header) are not redirected here: the action
   // would receive the /login page instead of its response and fail. Each action checks the user itself
