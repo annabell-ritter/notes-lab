@@ -2,8 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light-only palette: a warm off-white base (#FAF8F5) with one orange accent for actions, selection and focus.
-   Text colours keep at least 4.5:1 contrast on the background and on accent; white text keeps it on primary. */
+/* Light palette: a warm off-white base (#FAF8F5) with one orange accent for actions, selection and focus.
+   Dark palette (.dark, set on <html> by next-themes): a warm near-black base with a brighter orange and red,
+   which take dark text instead of white.
+   Text colours keep at least 4.5:1 contrast on the background and on accent, and on primary with its foreground.
+   In the dark palette, input outlines keep 3:1 on the background and on cards. */
 @layer base {
   :root {
     --background: 36 33% 97%;
@@ -31,6 +34,28 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 24 10% 8%;
+    --foreground: 36 20% 92%;
+    --card: 24 9% 11%;
+    --card-foreground: 36 20% 92%;
+    --popover: 24 9% 11%;
+    --popover-foreground: 36 20% 92%;
+    --primary: 22 90% 55%;
+    --primary-foreground: 24 10% 8%;
+    --secondary: 24 8% 17%;
+    --secondary-foreground: 36 20% 92%;
+    --muted: 24 8% 17%;
+    --muted-foreground: 30 8% 65%;
+    --accent: 22 35% 17%;
+    --accent-foreground: 36 20% 92%;
+    --destructive: 0 80% 68%;
+    --destructive-foreground: 24 10% 8%;
+    --border: 24 8% 19%;
+    --input: 24 8% 42%;
+    --ring: 22 90% 55%;
   }
 }
 

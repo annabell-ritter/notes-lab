@@ -46,6 +46,7 @@ A notes app with collections, tags and search, backed by Supabase. The full requ
 - The sign-up confirmation email links to `/auth/confirm`, which signs the user in and opens `/workspace`.
 - After sign-out, redirect to `/login`.
 - Never keep user data in the browser's local or session storage. The session lives in cookies that the server checks.
+- A UI preference such as the theme may be kept in local storage; notes, tags, collections and account data may not.
 - The old `/notes` URLs forward to `/workspace` (redirects in `next.config.ts`).
 
 ## Workflow
