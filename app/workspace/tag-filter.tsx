@@ -1,17 +1,8 @@
 "use client";
 
-import type { Note, Tag } from "@/lib/db";
+import type { Tag } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { tagColor } from "./tag-colors";
-
-// AND logic: a note is kept only if it has every selected tag. No selected tags keeps every note.
-export function filterNotesByTags(notes: Note[], tagIds: Set<number>): Note[] {
-  if (!tagIds.size) return notes;
-  return notes.filter((note) => {
-    const noteTagIds = new Set(note.tags.map((tag) => tag.id));
-    return [...tagIds].every((id) => noteTagIds.has(id));
-  });
-}
 
 export function TagFilter({
   tags,

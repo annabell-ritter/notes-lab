@@ -10,11 +10,14 @@ import {
   createNote,
   deleteCollection,
   deleteNote,
+  getNoteSummaries,
   removeTagFromNote,
   renameCollection,
-  searchNoteIds,
   updateNote,
+  type NoteFilter,
+  type NoteSummary,
 } from "@/lib/db";
+import { NOTES_MAX } from "./note-paging";
 
 export type SaveNoteState = {
   error?: string;
@@ -181,17 +184,21 @@ export async function removeTagFromNoteAction(
   }
 }
 
-export async function searchNotesAction(
-  text: string,
-  tagIds: number[],
-): Promise<{ noteIds?: number[]; error?: string }> {
+// Loads the sidebar list when it is searched, filtered by tags, or extended with "Load more notes".
+export async function loadNotesAction(
+  filter: NoteFilter,
+  limit: number,
+): Promise<{ notes?: NoteSummary[]; hasMore?: boolean; error?: string }> {
   await requireUser();
 
-  if (!tagIds.every(isValidId)) return { error: "Invalid tag." };
+  if (!filter.tagIds.every(isValidId)) return { error: "Invalid tag." };
+  if (!Number.isInteger(limit) || limit < 1 || limit > NOTES_MAX) {
+    return { error: "Invalid number of notes." };
+  }
 
   try {
-    return { noteIds: await searchNoteIds(text, tagIds) };
+    return await getNoteSummaries({ text: filter.text.trim(), tagIds: filter.tagIds }, limit);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not search notes." };
+    return { error: error instanceof Error ? error.message : "Could not load notes." };
   }
 }

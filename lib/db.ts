@@ -20,6 +20,23 @@ export type Note = {
   tags: Tag[];
 };
 
+// A note as the sidebar lists it: the start of the body instead of the full body.
+export type NoteSummary = Omit<Note, "body" | "created_at"> & {
+  body_preview: string | null;
+};
+
+// What the sidebar list is narrowed to. Empty text and no tags means every note.
+export type NoteFilter = {
+  text: string;
+  tagIds: number[];
+};
+
+// How many of the user's notes are in a collection (collection_id null: not in a collection).
+export type NoteCount = {
+  collection_id: number | null;
+  note_count: number;
+};
+
 export type NoteInput = {
   title: string;
   body: string | null;
@@ -34,24 +51,68 @@ export type Collection = {
 // tags(...) follows the note_tags links, so each note comes with its tags.
 const NOTE_COLUMNS =
   "id, title, body, created_at, updated_at, collection_id, tags(id, name)";
+const NOTE_SUMMARY_COLUMNS =
+  "id, title, body_preview, updated_at, collection_id, tags(id, name)";
 const COLLECTION_COLUMNS = "id, name, created_at";
 const TAG_COLUMNS = "id, name";
 
-// Postgres error codes for a unique constraint violation and a foreign key violation.
+// Postgres error codes for a unique constraint violation, a foreign key violation,
+// and the "no data found" error that add_tag_to_note raises for a missing note.
 const UNIQUE_VIOLATION = "23505";
 const FOREIGN_KEY_VIOLATION = "23503";
+const NO_DATA_FOUND = "P0002";
 const DUPLICATE_COLLECTION_MESSAGE = "A collection with this name already exists.";
 
-export async function getNotes(): Promise<Note[]> {
+// Turns what the user typed into a prefix query: "team meetin" becomes "team:* & meetin:*".
+// Every word must match, and the last one can still be unfinished. Only letters and digits are kept,
+// so characters with a special meaning in a search query (& | ! : ( )) can't cause errors.
+function toPrefixQuery(text: string): string {
+  const words = text.match(/[\p{L}\p{N}]+/gu) ?? [];
+  return words.map((word) => `${word}:*`).join(" & ");
+}
+
+// The one query behind the sidebar list, Load more, search and the tag filter: the user's most recently
+// edited notes whose title or body matches `text` (if any) and that have every tag in `tagIds` (AND logic).
+// Returns at most `limit` notes, and whether there are more.
+// Each selected tag gets its own inner join on note_tags (t0, t1, …). One join row only holds one tag,
+// so a single join can't check "has tag A and tag B"; separate joins can.
+export async function getNoteSummaries(
+  { text, tagIds }: NoteFilter,
+  limit: number,
+): Promise<{ notes: NoteSummary[]; hasMore: boolean }> {
+  const query = toPrefixQuery(text);
+  // Text with no letters or digits (only punctuation, for example) matches nothing.
+  if (text && !query) return { notes: [], hasMore: false };
+
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const tagJoins = tagIds.map((_, i) => `t${i}:note_tags!inner()`);
+  let request = supabase
     .from("notes")
-    .select(NOTE_COLUMNS)
+    .select([NOTE_SUMMARY_COLUMNS, ...tagJoins].join(", "));
+  if (query) request = request.textSearch("search_vector", query, { config: "english" });
+  tagIds.forEach((tagId, i) => {
+    request = request.eq(`t${i}.tag_id`, tagId);
+  });
+
+  // One extra row tells whether there are more notes than `limit`.
+  const { data, error } = await request
     .order("updated_at", { ascending: false })
     .order("id", { ascending: false })
-    .order("name", { referencedTable: "tags" });
+    .order("name", { referencedTable: "tags" })
+    .limit(limit + 1);
 
   if (error) throw new Error(`Could not load notes: ${error.message}`);
+  const notes = data as unknown as NoteSummary[];
+  return { notes: notes.slice(0, limit), hasMore: notes.length > limit };
+}
+
+export async function getNoteCounts(): Promise<NoteCount[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("note_counts")
+    .select("collection_id, note_count");
+
+  if (error) throw new Error(`Could not count notes: ${error.message}`);
   return data;
 }
 
@@ -177,47 +238,34 @@ export async function getTags(): Promise<Tag[]> {
   return data;
 }
 
+// The tags that are on at least one note, for the tag filter.
+// note_tags!inner() keeps only tags with a link; limit 1 stops it from reading every link of a tag.
+export async function getTagsInUse(): Promise<Tag[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tags")
+    .select(`${TAG_COLUMNS}, note_tags!inner()`)
+    .limit(1, { referencedTable: "note_tags" })
+    .order("name", { ascending: true });
+
+  if (error) throw new Error(`Could not load tags: ${error.message}`);
+  return data.map(({ id, name }) => ({ id, name }));
+}
+
 // Reuses the user's tag if one with this name exists (ignoring case and spaces at either end), otherwise creates it.
-// Adding a tag the note already has does nothing.
+// Adding a tag the note already has does nothing. The database does all of this in one call (add_tag_to_note).
 export async function addTagToNote(noteId: number, name: string): Promise<void> {
   const supabase = await createClient();
-  const tagName = name.trim();
+  const { error } = await supabase.rpc("add_tag_to_note", {
+    p_note_id: noteId,
+    p_tag_name: name.trim(),
+  });
 
-  // Check the note first, so a note that was deleted (or isn't the user's) doesn't leave a new, unused tag behind.
-  const { data: note, error: noteError } = await supabase
-    .from("notes")
-    .select("id")
-    .eq("id", noteId)
-    .maybeSingle();
-  if (noteError) throw new Error(`Could not add tag: ${noteError.message}`);
-  if (!note) throw new Error("This note no longer exists.");
-  const sameName = (tag: Tag) =>
-    tag.name.trim().toLowerCase() === tagName.toLowerCase();
-
-  let tag = (await getTags()).find(sameName);
-  if (!tag) {
-    const { data, error } = await supabase
-      .from("tags")
-      .insert({ name: tagName })
-      .select(TAG_COLUMNS)
-      .single();
-
-    // The same tag was created in the meantime (for example from another tab): use that one.
-    if (error?.code === UNIQUE_VIOLATION) tag = (await getTags()).find(sameName);
-    else if (error) throw new Error(`Could not create tag: ${error.message}`);
-    else tag = data;
+  // The note was deleted (or isn't the user's), either before the call or while it ran.
+  if (error?.code === NO_DATA_FOUND || error?.code === FOREIGN_KEY_VIOLATION) {
+    throw new Error("This note no longer exists.");
   }
-  if (!tag) throw new Error("Could not create tag.");
-
-  const { error } = await supabase
-    .from("note_tags")
-    .insert({ note_id: noteId, tag_id: tag.id });
-
-  // The note was deleted between the check above and here.
-  if (error?.code === FOREIGN_KEY_VIOLATION) throw new Error("This note no longer exists.");
-  if (error && error.code !== UNIQUE_VIOLATION) {
-    throw new Error(`Could not add tag: ${error.message}`);
-  }
+  if (error) throw new Error(`Could not add tag: ${error.message}`);
 }
 
 export async function removeTagFromNote(noteId: number, tagId: number): Promise<void> {
@@ -229,35 +277,4 @@ export async function removeTagFromNote(noteId: number, tagId: number): Promise<
     .eq("tag_id", tagId);
 
   if (error) throw new Error(`Could not remove tag: ${error.message}`);
-}
-
-// Turns what the user typed into a prefix query: "team meetin" becomes "team:* & meetin:*".
-// Every word must match, and the last one can still be unfinished. Only letters and digits are kept,
-// so characters with a special meaning in a search query (& | ! : ( )) can't cause errors.
-function toPrefixQuery(text: string): string {
-  const words = text.match(/[\p{L}\p{N}]+/gu) ?? [];
-  return words.map((word) => `${word}:*`).join(" & ");
-}
-
-// Search and tag filter in one query: returns the ids of notes whose title or body matches `text`
-// and that have every tag in `tagIds` (AND logic).
-// Each selected tag gets its own inner join on note_tags (t0, t1, …). One join row only holds one tag,
-// so a single join can't check "has tag A and tag B"; separate joins can.
-export async function searchNoteIds(text: string, tagIds: number[]): Promise<number[]> {
-  const query = toPrefixQuery(text);
-  if (!query) return [];
-
-  const supabase = await createClient();
-  const tagJoins = tagIds.map((_, i) => `t${i}:note_tags!inner(tag_id)`);
-  let request = supabase
-    .from("notes")
-    .select(["id", ...tagJoins].join(", "))
-    .textSearch("search_vector", query, { config: "english" });
-  tagIds.forEach((tagId, i) => {
-    request = request.eq(`t${i}.tag_id`, tagId);
-  });
-
-  const { data, error } = await request;
-  if (error) throw new Error(`Could not search notes: ${error.message}`);
-  return (data as unknown as { id: number }[]).map((note) => note.id);
 }
