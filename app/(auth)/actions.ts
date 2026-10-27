@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signIn, signOut, signUp } from "@/lib/auth";
 
@@ -47,8 +46,10 @@ export async function signUpAction(
   if (!email || !password) return { error: "Enter your email and a password.", email };
 
   // The confirmation email links back to this app, which signs the user in and opens the workspace.
-  const origin = (await headers()).get("origin");
-  const confirmUrl = origin ? `${origin}/auth/confirm?next=/workspace` : undefined;
+  // The address comes from SITE_URL, not the request's Origin header, which a caller can set to any site.
+  const siteUrl = process.env.SITE_URL;
+  if (!siteUrl) throw new Error("SITE_URL is not set. Add it to .env.local (see README).");
+  const confirmUrl = new URL("/auth/confirm?next=/workspace", siteUrl).toString();
 
   let signedIn: boolean;
   try {
