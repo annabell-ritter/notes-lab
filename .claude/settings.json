@@ -1,6 +1,7 @@
 {
   "enabledPlugins": {
     "comprehensive-review@claude-code-workflows": true,
-    "code-refactoring@claude-code-workflows": true
+    "code-refactoring@claude-code-workflows": true,
+    "superpowers@claude-plugins-official": true
   }
 }
