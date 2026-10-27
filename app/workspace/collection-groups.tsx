@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
-import type { Collection, Note, Tag } from "@/lib/db";
+import { Button } from "@/components/ui/button";
+import type { Collection, NoteCount, NoteSummary, Tag } from "@/lib/db";
 import { cn } from "@/lib/utils";
-import { searchNotesAction } from "./actions";
+import { loadNotesAction } from "./actions";
 import { CollectionMenu, RenameCollectionForm } from "./collection-menu";
+import { NOTES_MAX, NOTES_PAGE_SIZE } from "./note-paging";
 import { NoteList } from "./note-list";
 import { useNotesFilter } from "./notes-filter-context";
-import { filterNotesByTags, TagFilter } from "./tag-filter";
+import { TagFilter } from "./tag-filter";
 
 const UNCOLLECTED = "uncollected";
 
@@ -19,14 +21,67 @@ function groupKey(collectionId: number | null) {
 
 export function CollectionGroups({
   notes,
+  hasMoreNotes,
+  noteCounts,
   collections,
+  filterTags,
 }: {
-  notes: Note[];
+  // The first page of notes, most recently edited first, and whether there are more.
+  notes: NoteSummary[];
+  hasMoreNotes: boolean;
+  // How many notes each collection has in total, loaded or not.
+  noteCounts: NoteCount[];
   collections: Collection[];
+  // The tags that are on at least one note, sorted by name.
+  filterTags: Tag[];
 }) {
   const pathname = usePathname();
+  const { searchText, selectedTagIds, setSelectedTagIds } = useNotesFilter();
+
+  // Ignore a selected tag once it's on no note any more, so it can't hide every note invisibly.
+  const filterTagIds = new Set(filterTags.map((tag) => tag.id));
+  const activeTagIds = new Set(
+    [...selectedTagIds].filter((id) => filterTagIds.has(id)),
+  );
+  const isFiltering = activeTagIds.size > 0;
+  const isSearching = searchText !== "";
+  const isNarrowed = isFiltering || isSearching;
+
+  // How many notes the list shows: one page at first, one more with each "Load more notes",
+  // and back to one page whenever the search or the selected tags change.
+  const tagKey = [...activeTagIds].sort((a, b) => a - b).join(",");
+  const filterKey = `${tagKey}|${searchText}`;
+  const [limit, setLimit] = useState(NOTES_PAGE_SIZE);
+  const [lastFilterKey, setLastFilterKey] = useState(filterKey);
+  if (filterKey !== lastFilterKey) {
+    setLastFilterKey(filterKey);
+    setLimit(NOTES_PAGE_SIZE);
+  }
+
+  // The first page comes with the page itself. A search, selected tags or more than one page are loaded
+  // from the database, which applies search and tags together (getNoteSummaries).
+  // That list loads again when the notes change, for example after an edit.
+  const usesFirstPage = !isNarrowed && limit === NOTES_PAGE_SIZE;
+  const queryKey = `${filterKey}|${limit}`;
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    notes: NoteSummary[];
+    hasMore: boolean;
+    error?: string;
+  } | null>(null);
+  if (usesFirstPage && loaded) setLoaded(null);
+
+  // While a new list loads, the previous one stays visible instead of an empty list.
+  const isPending = !usesFirstPage && loaded?.key !== queryKey;
+  const loadError = !usesFirstPage && !isPending ? loaded?.error : undefined;
+  const visibleNotes = usesFirstPage
+    ? notes
+    : (loaded?.notes ?? (isNarrowed ? [] : notes));
+  const hasMore = usesFirstPage ? hasMoreNotes : (loaded?.hasMore ?? false);
+  const canLoadMore = hasMore && limit < NOTES_MAX;
+
   const activeNoteId = Number(pathname.match(/^\/workspace\/(\d+)$/)?.[1]);
-  const activeNote = notes.find((note) => note.id === activeNoteId);
+  const activeNote = [...visibleNotes, ...notes].find((note) => note.id === activeNoteId);
   const activeGroup = activeNote ? groupKey(activeNote.collection_id) : null;
 
   const [expanded, setExpanded] = useState<Set<string>>(
@@ -49,6 +104,35 @@ export function CollectionGroups({
     message: string;
   } | null>(null);
 
+  useEffect(() => {
+    if (usesFirstPage) return;
+    const tagIds = tagKey ? tagKey.split(",").map(Number) : [];
+    // Ignore the answer if the list changed while it was on its way.
+    let isLatest = true;
+
+    loadNotesAction({ text: searchText, tagIds }, limit).then((result) => {
+      if (!isLatest) return;
+      setLoaded((current) => ({
+        key: `${tagKey}|${searchText}|${limit}`,
+        notes: result.notes ?? current?.notes ?? [],
+        hasMore: result.hasMore ?? false,
+        error: result.error,
+      }));
+
+      // Open every group that contains a result, so search and filter results are visible straight away.
+      if (searchText || tagIds.length) {
+        const groupsWithResults = (result.notes ?? []).map((note) =>
+          groupKey(note.collection_id),
+        );
+        setExpanded((current) => new Set([...current, ...groupsWithResults]));
+      }
+    });
+
+    return () => {
+      isLatest = false;
+    };
+  }, [usesFirstPage, searchText, tagKey, limit, notes]);
+
   function toggle(key: string) {
     const next = new Set(expanded);
     if (next.has(key)) next.delete(key);
@@ -56,88 +140,28 @@ export function CollectionGroups({
     setExpanded(next);
   }
 
-  // The filter offers the tags that are on at least one note, sorted by name.
-  const tagsById = new Map<number, Tag>();
-  for (const note of notes) {
-    for (const tag of note.tags) tagsById.set(tag.id, tag);
-  }
-  const filterTags = [...tagsById.values()].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
-
-  const { searchText, selectedTagIds, setSelectedTagIds } = useNotesFilter();
-  // Ignore a selected tag once it's on no note any more, so it can't hide every note invisibly.
-  const activeTagIds = new Set(
-    [...selectedTagIds].filter((id) => tagsById.has(id)),
-  );
-  const isFiltering = activeTagIds.size > 0;
-  const isSearching = searchText !== "";
-
-  // While searching, the database applies the search and the selected tags together (searchNoteIds).
-  // It runs again when either changes, and when the notes change, for example after an edit.
-  const tagKey = [...activeTagIds].sort((a, b) => a - b).join(",");
-  const searchKey = `${tagKey}|${searchText}`;
-  const [searchResult, setSearchResult] = useState<{
-    key: string;
-    noteIds: Set<number>;
-    error?: string;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!searchText) return;
-    const tagIds = tagKey ? tagKey.split(",").map(Number) : [];
-    // Ignore the answer if the search changed while it was on its way.
-    let isLatest = true;
-
-    searchNotesAction(searchText, tagIds).then((result) => {
-      if (!isLatest) return;
-      const noteIds = new Set(result.noteIds ?? []);
-      setSearchResult({ key: `${tagKey}|${searchText}`, noteIds, error: result.error });
-
-      // Open every group that contains a result, so the results are visible straight away.
-      const groupsWithResults = notes
-        .filter((note) => noteIds.has(note.id))
-        .map((note) => groupKey(note.collection_id));
-      setExpanded((current) => new Set([...current, ...groupsWithResults]));
-    });
-
-    return () => {
-      isLatest = false;
-    };
-  }, [searchText, tagKey, notes]);
-
-  // While a new search runs, the previous results stay visible instead of an empty list.
-  const isSearchPending = isSearching && searchResult?.key !== searchKey;
-  const searchError = isSearching && !isSearchPending ? searchResult?.error : undefined;
-
-  let visibleNotes = filterNotesByTags(notes, activeTagIds);
-  if (isSearching) {
-    visibleNotes = searchResult
-      ? visibleNotes.filter((note) => searchResult.noteIds.has(note.id))
-      : [];
-  }
-
   function toggleTag(tagId: number) {
     const next = new Set(activeTagIds);
     if (next.has(tagId)) next.delete(tagId);
     else next.add(tagId);
     setSelectedTagIds(next);
-
-    // Open every group that contains a matching note, so the results are visible straight away.
-    if (next.size) {
-      const matchingGroups = filterNotesByTags(notes, next).map((note) =>
-        groupKey(note.collection_id),
-      );
-      setExpanded(new Set([...expanded, ...matchingGroups]));
-    }
   }
+
+  function loadMore() {
+    setLimit(Math.min(limit + NOTES_PAGE_SIZE, NOTES_MAX));
+  }
+
+  const countByGroup = new Map(
+    noteCounts.map((count) => [groupKey(count.collection_id), count.note_count]),
+  );
+  const totalNotes = noteCounts.reduce((sum, count) => sum + count.note_count, 0);
 
   // The message above the groups when nothing (or nothing yet) can be shown.
   let listMessage: React.ReactNode = null;
-  if (searchError) {
-    listMessage = <span className="text-destructive">{searchError}</span>;
-  } else if (!visibleNotes.length && isSearchPending) {
-    listMessage = "Searching…";
+  if (loadError) {
+    listMessage = <span className="text-destructive">{loadError}</span>;
+  } else if (!visibleNotes.length && isPending) {
+    listMessage = isSearching ? "Searching…" : "Loading…";
   } else if (!visibleNotes.length && isSearching) {
     listMessage = isFiltering
       ? `No notes match “${searchText}” and have all the selected tags.`
@@ -157,7 +181,7 @@ export function CollectionGroups({
       key: UNCOLLECTED,
       name: "Uncollected",
       collection: null,
-      emptyText: notes.length
+      emptyText: totalNotes
         ? "Every note is in a collection."
         : "No notes yet.",
     },
@@ -165,12 +189,12 @@ export function CollectionGroups({
 
   return (
     <div className="flex flex-col gap-2">
-      {!notes.length && (
+      {!totalNotes && (
         <p className="p-2 text-sm text-muted-foreground">
           No notes yet. Create your first one with &ldquo;New note&rdquo;.
         </p>
       )}
-      {notes.length > 0 && (
+      {totalNotes > 0 && (
         <TagFilter
           tags={filterTags}
           selected={activeTagIds}
@@ -178,7 +202,7 @@ export function CollectionGroups({
           onClear={() => setSelectedTagIds(new Set())}
         />
       )}
-      {notes.length > 0 && (
+      {totalNotes > 0 && (
         <p aria-live="polite" className="px-2 text-sm text-muted-foreground empty:hidden">
           {listMessage}
         </p>
@@ -188,7 +212,12 @@ export function CollectionGroups({
           (note) => groupKey(note.collection_id) === group.key,
         );
         // While filtering or searching, hide groups without a matching note.
-        if ((isFiltering || isSearching) && !groupNotes.length) return null;
+        if (isNarrowed && !groupNotes.length) return null;
+        // Without a search or tag filter, the count includes the group's notes that aren't loaded yet.
+        const groupCount = isNarrowed
+          ? groupNotes.length
+          : Math.max(countByGroup.get(group.key) ?? 0, groupNotes.length);
+        const notLoadedCount = groupCount - groupNotes.length;
         const isOpen = expanded.has(group.key);
 
         return (
@@ -214,7 +243,7 @@ export function CollectionGroups({
                   />
                   <span className="truncate">{group.name}</span>
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {groupNotes.length}
+                    {groupCount}
                   </span>
                 </button>
                 {group.collection && (
@@ -235,9 +264,17 @@ export function CollectionGroups({
             )}
             {isOpen && (
               <div className="pb-2 pl-4 pt-1">
-                {groupNotes.length ? (
-                  <NoteList notes={groupNotes} />
-                ) : (
+                {groupNotes.length > 0 && <NoteList notes={groupNotes} />}
+                {notLoadedCount > 0 && (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">
+                    {notLoadedCount} older {notLoadedCount === 1 ? "note isn’t" : "notes aren’t"}{" "}
+                    loaded yet.{" "}
+                    {canLoadMore
+                      ? "Use “Load more notes” below."
+                      : "Search or filter by tags to find them."}
+                  </p>
+                )}
+                {!groupCount && (
                   <p className="px-3 py-2 text-xs text-muted-foreground">
                     {group.emptyText}
                   </p>
@@ -247,6 +284,25 @@ export function CollectionGroups({
           </section>
         );
       })}
+      {canLoadMore && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mt-1 text-muted-foreground"
+          onClick={loadMore}
+          disabled={isPending}
+        >
+          {isPending ? "Loading…" : "Load more notes"}
+        </Button>
+      )}
+      {hasMore && !canLoadMore && (
+        <p className="px-2 text-xs text-muted-foreground">
+          {isNarrowed
+            ? `Showing the ${NOTES_MAX} most recently edited matches. Narrow the search or add tags to find the rest.`
+            : `Showing the ${NOTES_MAX} most recently edited notes. Search or filter by tags to find older ones.`}
+        </p>
+      )}
     </div>
   );
 }

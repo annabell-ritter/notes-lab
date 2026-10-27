@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { Note } from "@/lib/db";
+import type { NoteSummary } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { tagColor } from "./tag-colors";
 
-export function NoteList({ notes }: { notes: Note[] }) {
+export function NoteList({ notes }: { notes: NoteSummary[] }) {
   const pathname = usePathname();
 
   return (
@@ -29,7 +29,7 @@ export function NoteList({ notes }: { notes: Note[] }) {
                 {note.title}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
-                {note.body || "No content"}
+                {note.body_preview || "No content"}
               </span>
               {note.tags.length > 0 && (
                 <span className="mt-1 flex flex-wrap gap-1">

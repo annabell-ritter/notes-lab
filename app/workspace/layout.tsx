@@ -5,11 +5,12 @@ import { ChevronLeft, LogOut, Plus } from "lucide-react";
 import { SubmitButton } from "@/components/submit-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { requireUser } from "@/lib/auth";
-import { getCollections, getNotes } from "@/lib/db";
+import { getCollections, getNoteCounts, getNoteSummaries, getTagsInUse } from "@/lib/db";
 import { signOutAction } from "../(auth)/actions";
 import { createNoteAction } from "./actions";
 import { CollectionGroups } from "./collection-groups";
 import { NewCollectionForm } from "./new-collection-form";
+import { NOTES_PAGE_SIZE } from "./note-paging";
 import { NoteViewFlag } from "./note-view-flag";
 import { NotesFilterProvider } from "./notes-filter-context";
 import { SearchInput } from "./search-input";
@@ -37,9 +38,14 @@ async function UserMenu() {
 async function NotesSidebar() {
   await requireUser();
 
-  let notes, collections;
+  let firstPage, noteCounts, collections, filterTags;
   try {
-    [notes, collections] = await Promise.all([getNotes(), getCollections()]);
+    [firstPage, noteCounts, collections, filterTags] = await Promise.all([
+      getNoteSummaries({ text: "", tagIds: [] }, NOTES_PAGE_SIZE),
+      getNoteCounts(),
+      getCollections(),
+      getTagsInUse(),
+    ]);
   } catch {
     return (
       <p className="p-2 text-sm text-destructive">
@@ -48,7 +54,15 @@ async function NotesSidebar() {
     );
   }
 
-  return <CollectionGroups notes={notes} collections={collections} />;
+  return (
+    <CollectionGroups
+      notes={firstPage.notes}
+      hasMoreNotes={firstPage.hasMore}
+      noteCounts={noteCounts}
+      collections={collections}
+      filterTags={filterTags}
+    />
+  );
 }
 
 export default function NotesLayout({
