@@ -54,6 +54,7 @@ export async function updateSession(request: NextRequest) {
     pathname === "/" ||
     pathname === "/login" ||
     pathname === "/signup" ||
+    pathname === "/forgot-password" ||
     pathname === "/auth/confirm" ||
     pathname === "/auth/error";
 

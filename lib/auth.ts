@@ -27,6 +27,27 @@ export async function requireUser(): Promise<CurrentUser> {
   return user;
 }
 
+// How long after opening a reset link the user may set a new password.
+const RECOVERY_WINDOW_SECONDS = 15 * 60;
+
+// For the set-new-password page and its Server Action: only a session that was just created from a
+// password reset link may change the password. A normal session, such as a stolen cookie, can't.
+export async function requireRecoverySession(): Promise<CurrentUser> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) redirect("/login");
+
+  const { claims } = data;
+  const oldestAllowed = Math.floor(Date.now() / 1000) - RECOVERY_WINDOW_SECONDS;
+  const recentRecovery = (claims.amr ?? []).some(
+    (entry) =>
+      typeof entry !== "string" && entry.method === "recovery" && entry.timestamp >= oldestAllowed,
+  );
+  if (!recentRecovery) redirect("/workspace");
+
+  return { id: claims.sub, email: claims.email ?? null };
+}
+
 export async function signUp(
   email: string,
   password: string,
@@ -54,6 +75,33 @@ export async function signOut(): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
+}
+
+// Supabase sends the email only if an account exists, and answers the same either way,
+// so the caller can't tell which emails have accounts.
+export async function requestPasswordReset(email: string, redirectTo: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  if (!error) return;
+
+  console.error("Password reset email failed:", error);
+  if (error.status === 429) {
+    throw new Error("Too many reset emails were requested. Wait a while and try again.");
+  }
+  throw new Error("Could not send the reset email. Try again later.");
+}
+
+// Sets the new password, then signs out the user's other sessions, in case the reset
+// happened because someone else had access to the account.
+export async function updatePassword(password: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+
+  const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
+  if (signOutError) {
+    throw new Error("Your password was changed, but other devices could not be signed out.");
+  }
 }
 
 // The confirmation link arrives either with a PKCE `code` (default email template)
