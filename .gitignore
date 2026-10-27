@@ -46,3 +46,6 @@ next-env.d.ts
 
 # /full-review reports
 /.full-review/
+
+# local security audit notes
+/.security-audit/
