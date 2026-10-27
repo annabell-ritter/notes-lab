@@ -30,22 +30,26 @@ export async function requireUser(): Promise<CurrentUser> {
 // How long after opening a reset link the user may set a new password.
 const RECOVERY_WINDOW_SECONDS = 15 * 60;
 
-// For the set-new-password page and its Server Action: only a session that was just created from a
-// password reset link may change the password. A normal session, such as a stolen cookie, can't.
-export async function requireRecoverySession(): Promise<CurrentUser> {
+// Only a session that was just created from a password reset link may change the password.
+// A normal session, such as a stolen cookie, can't.
+export async function hasRecentRecovery(): Promise<boolean> {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
-  if (error || !data?.claims) redirect("/login");
+  if (error || !data?.claims) return false;
 
-  const { claims } = data;
   const oldestAllowed = Math.floor(Date.now() / 1000) - RECOVERY_WINDOW_SECONDS;
-  const recentRecovery = (claims.amr ?? []).some(
+  return (data.claims.amr ?? []).some(
     (entry) =>
       typeof entry !== "string" && entry.method === "recovery" && entry.timestamp >= oldestAllowed,
   );
-  if (!recentRecovery) redirect("/workspace");
+}
 
-  return { id: claims.sub, email: claims.email ?? null };
+// For the set-new-password page: sends signed-out visitors to /login and
+// signed-in users without a recent reset link to /workspace.
+export async function requireRecoverySession(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!(await hasRecentRecovery())) redirect("/workspace");
+  return user;
 }
 
 export async function signUp(
@@ -98,10 +102,10 @@ export async function updatePassword(password: string): Promise<void> {
   const { error } = await supabase.auth.updateUser({ password });
   if (error) throw error;
 
+  // The password is already changed at this point, so a failure here must not look like the change failed:
+  // a retry with the same password would then be rejected as unchanged.
   const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
-  if (signOutError) {
-    throw new Error("Your password was changed, but other devices could not be signed out.");
-  }
+  if (signOutError) console.error("Signing out other sessions failed:", signOutError);
 }
 
 // The confirmation link arrives either with a PKCE `code` (default email template)

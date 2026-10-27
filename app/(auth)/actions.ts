@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  hasRecentRecovery,
   requestPasswordReset,
-  requireRecoverySession,
+  requireUser,
   signIn,
   signOut,
   signUp,
@@ -33,7 +34,9 @@ function errorMessage(error: unknown, fallback: string) {
 function confirmUrl(next: string) {
   const siteUrl = process.env.SITE_URL;
   if (!siteUrl) throw new Error("SITE_URL is not set. Add it to .env.local (see README).");
-  return new URL(`/auth/confirm?next=${next}`, siteUrl).toString();
+  const url = new URL("/auth/confirm", siteUrl);
+  url.searchParams.set("next", next);
+  return url.toString();
 }
 
 export async function signInAction(
@@ -107,7 +110,15 @@ export async function updatePasswordAction(
   _prevState: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
-  await requireRecoverySession();
+  await requireUser();
+  // The 15-minute window can run out while the form is open. Say so, instead of redirecting
+  // to the workspace as if the password had been changed.
+  if (!(await hasRecentRecovery())) {
+    return {
+      error:
+        "This reset link has expired. Sign out, then use “Forgot your password?” on the sign-in page to get a new one.",
+    };
+  }
 
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
