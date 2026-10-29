@@ -53,6 +53,8 @@ You need Node.js and a free Supabase project.
    npx supabase db push
    ```
 
+   Before `db push` on a new project, turn on the Supabase setting that enables row-level security automatically for new tables. It creates the function `public.rls_auto_enable()`, which one of the migrations changes, so `db push` fails if the setting is off.
+
 4. Start the app:
 
    ```bash
