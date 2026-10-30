@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import type { Collection } from "@/lib/db";
 import { deleteCollectionAction, renameCollectionAction } from "./actions";
+import { NAME_MAX_LENGTH } from "./input-limits";
 
 export function CollectionMenu({
   collection,
@@ -117,6 +118,7 @@ export function RenameCollectionForm({
         }}
         autoFocus
         required
+        maxLength={NAME_MAX_LENGTH}
         disabled={isSaving}
         className="h-8"
       />

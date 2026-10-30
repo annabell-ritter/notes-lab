@@ -10,6 +10,7 @@ import {
   createCollectionAction,
   type CreateCollectionState,
 } from "./actions";
+import { NAME_MAX_LENGTH } from "./input-limits";
 
 const initialState: CreateCollectionState = {};
 
@@ -38,6 +39,7 @@ function CollectionNameForm({ onClose }: { onClose: () => void }) {
         }}
         autoFocus
         required
+        maxLength={NAME_MAX_LENGTH}
         placeholder="e.g. Work"
       />
       {state.error && (
