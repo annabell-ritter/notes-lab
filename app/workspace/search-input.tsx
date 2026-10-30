@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { SEARCH_MAX_LENGTH } from "./input-limits";
 import { useNotesFilter } from "./notes-filter-context";
 
 // Wait this long after the last keystroke before searching.
@@ -33,6 +34,7 @@ export function SearchInput() {
         onKeyDown={(event) => {
           if (event.key === "Escape") clear();
         }}
+        maxLength={SEARCH_MAX_LENGTH}
         placeholder="Search all notes…"
         className="pl-8 pr-8 [&::-webkit-search-cancel-button]:hidden"
       />

@@ -18,6 +18,7 @@ import {
   updateNoteAction,
   type SaveNoteState,
 } from "../actions";
+import { BODY_MAX_LENGTH, NAME_MAX_LENGTH, TITLE_MAX_LENGTH } from "../input-limits";
 
 const initialState: SaveNoteState = {};
 
@@ -152,6 +153,7 @@ function TagEditor({ note, allTags }: { note: Note; allTags: Tag[] }) {
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Add a tag…"
+          maxLength={NAME_MAX_LENGTH}
           disabled={isSaving}
           className="h-9 w-full sm:h-8 sm:w-48"
         />
@@ -236,6 +238,7 @@ export function NoteEditor({
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           required
+          maxLength={TITLE_MAX_LENGTH}
           placeholder="Title"
           className="h-14 text-2xl font-semibold tracking-tight md:text-2xl"
         />
@@ -248,6 +251,7 @@ export function NoteEditor({
           value={body}
           onChange={(event) => setBody(event.target.value)}
           rows={18}
+          maxLength={BODY_MAX_LENGTH}
           placeholder="Write your note…"
           className="w-full resize-y rounded-md border border-input bg-card px-4 py-3 leading-relaxed text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:text-sm"
         />
