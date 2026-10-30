@@ -9,6 +9,7 @@ Notes Lab is a notes app. You sign in with your own account and only ever see yo
 - [What the app does](#what-the-app-does)
 - [App option chosen](#app-option-chosen)
 - [Run it locally](#run-it-locally)
+- [Deploy to Vercel](#deploy-to-vercel)
 - [Optional task: design](#optional-task-design)
 
 ## What the app does
@@ -44,7 +45,7 @@ You need Node.js and a free Supabase project.
 
    Where to find the values: open your project in the [Supabase dashboard](https://supabase.com/dashboard) and click **Connect** (or go to **Project Settings → API**). Copy the **Project URL** and the **publishable key** (the older **anon** key also works).
 
-   `SITE_URL` is the address of the app itself. The sign-up confirmation email links back to it, so set it to the real address when the app is deployed. It has no `NEXT_PUBLIC_` prefix because only the server reads it.
+   `SITE_URL` is the address of the app itself. The sign-up confirmation and password reset emails link back to it, so set it to the real address when the app is deployed (see [Deploy to Vercel](#deploy-to-vercel)). It has no `NEXT_PUBLIC_` prefix because only the server reads it.
 
 3. Set up the database tables by linking your project and applying the migrations:
 
@@ -62,6 +63,16 @@ You need Node.js and a free Supabase project.
    ```
 
    Then open [http://localhost:3000](http://localhost:3000) and create an account.
+
+## Deploy to Vercel
+
+The app runs at [notes-lab-beta.vercel.app](https://notes-lab-beta.vercel.app). `.env.local` is never committed, so Vercel needs the same three values set on its own:
+
+1. In the Vercel project, open **Settings → Environment Variables** and add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SITE_URL`. Set `SITE_URL` to the app's address without a slash at the end, such as `https://notes-lab-beta.vercel.app`. None of the three is a secret, so they can be plain config values.
+2. Redeploy. New or changed variables only reach new deployments.
+3. In the Supabase dashboard, open **Authentication → URL Configuration**. Set the **Site URL** to the app's address and add `https://notes-lab-beta.vercel.app/**` to the **Redirect URLs**. Otherwise the links in the emails don't lead back to the deployed app.
+
+Without `SITE_URL`, the app can't build the email links: sign-up and "Forgot your password?" fail with a server error.
 
 ## Optional task: design
 

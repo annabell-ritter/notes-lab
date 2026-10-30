@@ -6,7 +6,8 @@ A notes app with collections, tags and search, backed by Supabase. The full requ
 
 ## Commands
 
-- `npm run dev`: run the app locally (the app is not deployed)
+- `npm run dev`: run the app locally
+- The app is deployed on Vercel at `https://notes-lab-beta.vercel.app`. Its environment variables are set in the Vercel project, not from `.env.local`: a new variable must be added there too, followed by a redeploy. Setup steps are in the README.
 
 ## Stack
 
