@@ -58,10 +58,20 @@ const TAG_COLUMNS = "id, name";
 
 // Postgres error codes for a unique constraint violation, a foreign key violation,
 // and the "no data found" error that add_tag_to_note raises for a missing note.
+// PGRST116 is the Data API's error when .single() finds no row (deleted, or not the user's).
 const UNIQUE_VIOLATION = "23505";
 const FOREIGN_KEY_VIOLATION = "23503";
 const NO_DATA_FOUND = "P0002";
+const NO_ROW_FOUND = "PGRST116";
 const DUPLICATE_COLLECTION_MESSAGE = "A collection with this name already exists.";
+const MISSING_NOTE_MESSAGE = "This note no longer exists.";
+
+// The database's own error text names tables, columns and constraints, so it only goes to the server log.
+// The browser gets `message`, which is always written here.
+function fail(message: string, error: { code?: string; message: string }): never {
+  console.error(message, error);
+  throw new Error(message);
+}
 
 // Turns what the user typed into a prefix query: "team meetin" becomes "team:* & meetin:*".
 // Every word must match, and the last one can still be unfinished. Only letters and digits are kept,
@@ -101,7 +111,7 @@ export async function getNoteSummaries(
     .order("name", { referencedTable: "tags" })
     .limit(limit + 1);
 
-  if (error) throw new Error(`Could not load notes: ${error.message}`);
+  if (error) fail("Could not load notes. Please try again.", error);
   const notes = data as unknown as NoteSummary[];
   return { notes: notes.slice(0, limit), hasMore: notes.length > limit };
 }
@@ -112,7 +122,7 @@ export async function getNoteCounts(): Promise<NoteCount[]> {
     .from("note_counts")
     .select("collection_id, note_count");
 
-  if (error) throw new Error(`Could not count notes: ${error.message}`);
+  if (error) fail("Could not count notes. Please try again.", error);
   return data;
 }
 
@@ -125,7 +135,7 @@ export async function getNote(id: number): Promise<Note | null> {
     .order("name", { referencedTable: "tags" })
     .maybeSingle();
 
-  if (error) throw new Error(`Could not load note: ${error.message}`);
+  if (error) fail("Could not load note. Please try again.", error);
   return data;
 }
 
@@ -137,7 +147,7 @@ export async function createNote(input: NoteInput): Promise<Note> {
     .select(NOTE_COLUMNS)
     .single();
 
-  if (error) throw new Error(`Could not create note: ${error.message}`);
+  if (error) fail("Could not create note. Please try again.", error);
   return data;
 }
 
@@ -150,7 +160,8 @@ export async function updateNote(id: number, input: NoteInput): Promise<Note> {
     .select(NOTE_COLUMNS)
     .single();
 
-  if (error) throw new Error(`Could not save note: ${error.message}`);
+  if (error?.code === NO_ROW_FOUND) throw new Error(MISSING_NOTE_MESSAGE);
+  if (error) fail("Could not save note. Please try again.", error);
   return data;
 }
 
@@ -158,7 +169,7 @@ export async function deleteNote(id: number): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("notes").delete().eq("id", id);
 
-  if (error) throw new Error(`Could not delete note: ${error.message}`);
+  if (error) fail("Could not delete note. Please try again.", error);
 }
 
 export async function assignNoteToCollection(
@@ -173,7 +184,10 @@ export async function assignNoteToCollection(
     .select(NOTE_COLUMNS)
     .single();
 
-  if (error) throw new Error(`Could not move note: ${error.message}`);
+  if (error?.code === NO_ROW_FOUND) throw new Error(MISSING_NOTE_MESSAGE);
+  // The two-column foreign key finds no such collection for this user: deleted, or not the user's.
+  if (error?.code === FOREIGN_KEY_VIOLATION) throw new Error("This collection no longer exists.");
+  if (error) fail("Could not move note. Please try again.", error);
   return data;
 }
 
@@ -185,7 +199,7 @@ export async function getCollections(): Promise<Collection[]> {
     .order("name", { ascending: true })
     .order("id", { ascending: true });
 
-  if (error) throw new Error(`Could not load collections: ${error.message}`);
+  if (error) fail("Could not load collections. Please try again.", error);
   return data;
 }
 
@@ -198,7 +212,7 @@ export async function createCollection(name: string): Promise<Collection> {
     .single();
 
   if (error?.code === UNIQUE_VIOLATION) throw new Error(DUPLICATE_COLLECTION_MESSAGE);
-  if (error) throw new Error(`Could not create collection: ${error.message}`);
+  if (error) fail("Could not create collection. Please try again.", error);
   return data;
 }
 
@@ -215,7 +229,7 @@ export async function renameCollection(
     .single();
 
   if (error?.code === UNIQUE_VIOLATION) throw new Error(DUPLICATE_COLLECTION_MESSAGE);
-  if (error) throw new Error(`Could not rename collection: ${error.message}`);
+  if (error) fail("Could not rename collection. Please try again.", error);
   return data;
 }
 
@@ -224,7 +238,7 @@ export async function deleteCollection(id: number): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("collections").delete().eq("id", id);
 
-  if (error) throw new Error(`Could not delete collection: ${error.message}`);
+  if (error) fail("Could not delete collection. Please try again.", error);
 }
 
 export async function getTags(): Promise<Tag[]> {
@@ -234,7 +248,7 @@ export async function getTags(): Promise<Tag[]> {
     .select(TAG_COLUMNS)
     .order("name", { ascending: true });
 
-  if (error) throw new Error(`Could not load tags: ${error.message}`);
+  if (error) fail("Could not load tags. Please try again.", error);
   return data;
 }
 
@@ -248,7 +262,7 @@ export async function getTagsInUse(): Promise<Tag[]> {
     .limit(1, { referencedTable: "note_tags" })
     .order("name", { ascending: true });
 
-  if (error) throw new Error(`Could not load tags: ${error.message}`);
+  if (error) fail("Could not load tags. Please try again.", error);
   return data.map(({ id, name }) => ({ id, name }));
 }
 
@@ -263,9 +277,9 @@ export async function addTagToNote(noteId: number, name: string): Promise<void> 
 
   // The note was deleted (or isn't the user's), either before the call or while it ran.
   if (error?.code === NO_DATA_FOUND || error?.code === FOREIGN_KEY_VIOLATION) {
-    throw new Error("This note no longer exists.");
+    throw new Error(MISSING_NOTE_MESSAGE);
   }
-  if (error) throw new Error(`Could not add tag: ${error.message}`);
+  if (error) fail("Could not add tag. Please try again.", error);
 }
 
 export async function removeTagFromNote(noteId: number, tagId: number): Promise<void> {
@@ -276,5 +290,5 @@ export async function removeTagFromNote(noteId: number, tagId: number): Promise<
     .eq("note_id", noteId)
     .eq("tag_id", tagId);
 
-  if (error) throw new Error(`Could not remove tag: ${error.message}`);
+  if (error) fail("Could not remove tag. Please try again.", error);
 }
